@@ -1,28 +1,29 @@
-package pe.com.edu.prismaapp.prisma.entities;
+package pe.com.edu.prismaapp.prisma.dto;
 
-import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonFormat;
+import lombok.Data;
+import pe.com.edu.prismaapp.prisma.entities.Cycle;
 
-import java.util.ArrayList;
 import java.util.Date;
-import java.util.List;
 
-@Entity
-@Table(name = "TCYCLE")
-public class Cycle {
+@Data
+public class CycleDTO {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id_cycle")
     private Long id;
-
     private String name;
-
+    @JsonFormat(pattern="dd/MM/yyyy")
     private Date startDate;
-
+    @JsonFormat(pattern="dd/MM/yyyy")
     private Date endDate;
 
-    @OneToMany(mappedBy = "cycle", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<StudentCycle> students = new ArrayList<>();
+    public CycleDTO(Cycle cycle) {
+        this.id = cycle.getId();
+        this.name = cycle.getName();
+        this.startDate = cycle.getStartDate();
+        this.endDate = cycle.getEndDate();
+    }
+
+
 
     public Long getId() {
         return id;
