@@ -34,7 +34,7 @@ public class CycleController {
     }
 
     @DeleteMapping("/{id}")
-    ResponseEntity<Object> delteCycle(@PathVariable Long id) {
+    ResponseEntity<Object> deleteCycle(@PathVariable Long id) {
         boolean c = cycleService.delete(id);
         return ResponseEntity.status(HttpStatus.OK).body(c);
     }
