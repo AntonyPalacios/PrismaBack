@@ -16,14 +16,26 @@ public class CycleController {
         this.cycleService = cycleService;
     }
 
-    @PostMapping
-    ResponseEntity<CycleDTO> createCycle(@RequestBody CycleDTO cycle) {
-        CycleDTO c = cycleService.save(cycle);
-        return ResponseEntity.status(HttpStatus.CREATED).body(c);
-    }
-
     @GetMapping
     ResponseEntity<Object> getAllCycles() {
         return ResponseEntity.ok(cycleService.findAll());
+    }
+
+    @PostMapping
+    ResponseEntity<CycleDTO> createCycle(@RequestBody CycleDTO cycle) {
+        CycleDTO c = cycleService.save(cycle);
+        return ResponseEntity.status(HttpStatus.OK).body(c);
+    }
+
+    @PutMapping("/{id}")
+    ResponseEntity<CycleDTO> updateCycle(@PathVariable Long id,@RequestBody CycleDTO cycle) {
+        CycleDTO c = cycleService.update(id,cycle);
+        return ResponseEntity.status(HttpStatus.OK).body(c);
+    }
+
+    @DeleteMapping("/{id}")
+    ResponseEntity<Object> delteCycle(@PathVariable Long id) {
+        boolean c = cycleService.delete(id);
+        return ResponseEntity.status(HttpStatus.OK).body(c);
     }
 }

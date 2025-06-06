@@ -9,4 +9,8 @@ public interface CycleService {
 
     CycleDTO save(CycleDTO cycleDto);
     List<CycleDTO> findAll();
+
+    CycleDTO update(Long id, CycleDTO cycle);
+
+    boolean delete(Long id);
 }

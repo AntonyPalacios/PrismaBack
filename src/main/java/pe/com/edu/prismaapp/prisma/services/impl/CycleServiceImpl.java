@@ -37,4 +37,22 @@ public class CycleServiceImpl implements CycleService {
                 .map(CycleDTO::new)
                 .collect(Collectors.toList());
     }
+
+    @Override
+    public CycleDTO update(Long id, CycleDTO cycleDTO) {
+        Cycle cycle = cycleRepository.findById(id).orElseThrow();
+        cycle.setName(cycleDTO.getName());
+        cycle.setStartDate(cycleDTO.getStartDate());
+        cycle.setEndDate(cycleDTO.getEndDate());
+        cycleRepository.save(cycle);
+        cycleDTO.setId(cycle.getId());
+        return cycleDTO;
+    }
+
+    @Override
+    public boolean delete(Long id) {
+        Cycle cycle = cycleRepository.findById(id).orElseThrow();
+        cycleRepository.delete(cycle);
+        return true;
+    }
 }
