@@ -22,6 +22,10 @@ public class User {
     private String email;
     private String password;
 
-    @OneToMany(mappedBy = "tutor")
-    private List<Student> students;
+    @ManyToMany
+    @JoinTable(
+            name = "TROLEUSER",
+            joinColumns = @JoinColumn(name = "id_role"),
+            inverseJoinColumns = @JoinColumn(name = "id_user"))
+    private List<Role> roles;
 }

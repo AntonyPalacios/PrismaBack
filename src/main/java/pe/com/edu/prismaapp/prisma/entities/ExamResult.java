@@ -15,8 +15,8 @@ public class ExamResult {
     private Exam exam;
 
     @ManyToOne
-    @JoinColumn(name = "id_student_cycle")
-    private StudentCycle studentCycle;
+    @JoinColumn(name = "id_student_stage")
+    private StudentStage studentStage;
 
     @ManyToOne
     @JoinColumn(name = "id_course")

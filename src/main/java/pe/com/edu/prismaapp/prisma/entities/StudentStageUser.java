@@ -1,14 +1,16 @@
 package pe.com.edu.prismaapp.prisma.entities;
 
 import jakarta.persistence.*;
+import lombok.Data;
 
 @Entity
-@Table(name = "TUSERCYCLE")
-public class UserCycle {
+@Table(name = "TSTUDENTSTAGEUSER")
+@Data
+public class StudentStageUser {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id_user_cycle")
+    @Column(name = "id_studentstageuser")
     private Long id;
 
     @ManyToOne
@@ -16,10 +18,6 @@ public class UserCycle {
     private User user;
 
     @ManyToOne
-    @JoinColumn(name = "id_cycle")
-    private Cycle cycle;
-
-    @ManyToOne
-    @JoinColumn(name = "id_role")
-    private Role role;
+    @JoinColumn(name = "id_student_stage")
+    private StudentStage studentStage;
 }
