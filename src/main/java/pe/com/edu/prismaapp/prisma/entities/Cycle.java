@@ -23,7 +23,4 @@ public class Cycle {
 
     private Date endDate;
 
-    @OneToMany(mappedBy = "cycle", cascade = CascadeType.ALL, orphanRemoval = true,fetch = FetchType.LAZY)
-    private List<StudentStage> students = new ArrayList<>();
-
 }

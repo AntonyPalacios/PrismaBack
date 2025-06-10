@@ -3,7 +3,9 @@ package pe.com.edu.prismaapp.prisma.entities;
 import jakarta.persistence.*;
 import lombok.Data;
 
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 
 @Entity
 @Table(name = "TSTAGE")
@@ -24,4 +26,7 @@ public class Stage {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_cycle")
     private Cycle cycle;
+
+    @OneToMany(mappedBy = "stage", cascade = CascadeType.ALL, orphanRemoval = true,fetch = FetchType.LAZY)
+    private List<StudentStage> students = new ArrayList<>();
 }
