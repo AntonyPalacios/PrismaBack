@@ -12,7 +12,7 @@ import java.util.stream.Collectors;
 @Service
 public class CycleServiceImpl implements CycleService {
 
-    private CycleRepository cycleRepository;
+    private final CycleRepository cycleRepository;
 
     public CycleServiceImpl(CycleRepository cycleRepository) {
         this.cycleRepository = cycleRepository;

@@ -1,7 +1,6 @@
 package pe.com.edu.prismaapp.prisma.services;
 
 import pe.com.edu.prismaapp.prisma.dto.CycleDTO;
-import pe.com.edu.prismaapp.prisma.entities.Cycle;
 
 import java.util.List;
 

@@ -3,18 +3,16 @@ package pe.com.edu.prismaapp.prisma.entities;
 import jakarta.persistence.*;
 import lombok.Data;
 
-import java.util.ArrayList;
 import java.util.Date;
-import java.util.List;
 
 @Entity
-@Table(name = "TCYCLE")
+@Table(name = "TSTAGE")
 @Data
-public class Cycle {
+public class Stage {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id_cycle")
+    @Column(name = "id_stage")
     private Long id;
 
     private String name;
@@ -23,7 +21,7 @@ public class Cycle {
 
     private Date endDate;
 
-    @OneToMany(mappedBy = "cycle", cascade = CascadeType.ALL, orphanRemoval = true,fetch = FetchType.LAZY)
-    private List<StudentCycle> students = new ArrayList<>();
-
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "id_cycle")
+    private Cycle cycle;
 }
