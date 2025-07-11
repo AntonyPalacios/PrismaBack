@@ -36,6 +36,6 @@ public class Student {
     private List<Parent> parents;
 
     @OneToMany(mappedBy = "student", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<StudentCycle> cycles = new ArrayList<>();
+    private List<StudentStage> cycles = new ArrayList<>();
 
 }

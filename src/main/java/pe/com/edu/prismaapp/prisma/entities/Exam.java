@@ -17,6 +17,6 @@ public class Exam {
     private Date date;
 
     @ManyToOne
-    @JoinColumn(name = "id_cycle")
-    private Cycle cycle;
+    @JoinColumn(name = "id_stage")
+    private Stage stage;
 }

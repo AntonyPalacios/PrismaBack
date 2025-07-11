@@ -4,16 +4,16 @@ import jakarta.persistence.*;
 
 @Entity
 @Table(
-        name = "TSTUDENTCYCLE",
+        name = "TSTUDENTSTAGE",
         uniqueConstraints = {
-                @UniqueConstraint(columnNames = {"id_student", "id_cycle"})
+                @UniqueConstraint(columnNames = {"id_student", "id_stage"})
         }
 )
-public class StudentCycle {
+public class StudentStage {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @JoinColumn(name = "id_student_cycle")
+    @JoinColumn(name = "id_student_stage")
     private Long id;
 
     @ManyToOne
@@ -21,8 +21,8 @@ public class StudentCycle {
     private Student student;
 
     @ManyToOne
-    @JoinColumn(name = "id_cycle")
-    private Cycle cycle;
+    @JoinColumn(name = "id_stage")
+    private Stage stage;
 
     private boolean active;
 }
