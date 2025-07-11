@@ -2,6 +2,7 @@ package pe.com.edu.prismaapp.prisma.entities;
 
 import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.util.List;
@@ -10,6 +11,7 @@ import java.util.List;
 @Table(name = "TUSER")
 @Getter
 @Setter
+@NoArgsConstructor
 public class User {
 
     @Id
@@ -17,10 +19,11 @@ public class User {
     @Column(name = "id_user")
     private Long id;
 
-    private String firstname;
-    private String lastname;
+    private String name;
+//    private String lastname;
     private String email;
-    private String password;
+    private boolean active;
+    //private String password;
 
     @ManyToMany
     @JoinTable(
