@@ -1,6 +1,7 @@
 package pe.com.edu.prismaapp.prisma.entities;
 
 import jakarta.persistence.*;
+import lombok.Data;
 
 @Entity
 @Table(
@@ -9,6 +10,7 @@ import jakarta.persistence.*;
                 @UniqueConstraint(columnNames = {"id_student", "id_stage"})
         }
 )
+@Data
 public class StudentStage {
 
     @Id

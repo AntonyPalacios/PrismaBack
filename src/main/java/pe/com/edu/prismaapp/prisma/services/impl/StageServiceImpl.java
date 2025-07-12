@@ -9,6 +9,7 @@ import pe.com.edu.prismaapp.prisma.repositories.CycleRepository;
 import pe.com.edu.prismaapp.prisma.repositories.StageRepository;
 import pe.com.edu.prismaapp.prisma.services.StageService;
 
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -34,6 +35,7 @@ public class StageServiceImpl implements StageService {
                 .orElseThrow(() -> new EntityNotFoundException("Ciclo no encontrado con ID: " + stageDTO.getIdCycle()));
         stage.setCycle(cycle);
         stageRepository.save(stage);
+        stageDTO.setId(stage.getId());
         return stageDTO;
     }
 
@@ -65,5 +67,11 @@ public class StageServiceImpl implements StageService {
             stageRepository.delete(stage1);
         }
         return false;
+    }
+
+    @Override
+    public Optional<Stage> getCurrentStage() {
+        Date currentDate = new Date();
+        return stageRepository.findStageByStartDateBeforeAndEndDateAfter(currentDate,currentDate);
     }
 }

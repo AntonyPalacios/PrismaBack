@@ -6,6 +6,7 @@ import pe.com.edu.prismaapp.prisma.repositories.AreaRepository;
 import pe.com.edu.prismaapp.prisma.services.AreaService;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class AreaServiceImpl implements AreaService {
@@ -20,5 +21,10 @@ public class AreaServiceImpl implements AreaService {
     @Override
     public List<Area> getAreas() {
         return areaRepository.findAll();
+    }
+
+    @Override
+    public Optional<Area> getAreaById(Long id) {
+        return areaRepository.findById(id);
     }
 }

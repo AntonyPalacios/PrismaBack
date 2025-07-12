@@ -10,6 +10,7 @@ import pe.com.edu.prismaapp.prisma.services.UserService;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class UserServiceImpl implements UserService {
@@ -82,5 +83,10 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findById(id).orElseThrow(() -> new RuntimeException("User not found"));
         userRepository.delete(user);
         return id;
+    }
+
+    @Override
+    public Optional<User> findTutorById(Long id) {
+        return userRepository.findByIdAndRoleName(id,"ROLE_TUTOR");
     }
 }
