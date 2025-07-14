@@ -9,7 +9,8 @@ import java.util.List;
 
 public interface StudentRepository extends JpaRepository<Student, Long> {
 
-    @Query("SELECT C.id, C.dni, C.email, C.name, C.phone, C.area.id as areaId, C.tutor.id as tutorId, B.active as isActive " +
+    @Query("SELECT C.id, C.dni, C.email, C.name, C.phone, C.area.id as areaId, " +
+            "C.tutor.id as tutorId, B.active as isActive, B.stage.id as stageId " +
             "FROM StudentStageUser A " +
             "INNER JOIN StudentStage B on A.studentStage.id=B.id " +
             "inner join Student C on B.student.id=C.id " +

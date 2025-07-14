@@ -20,7 +20,7 @@ public class AreaServiceImpl implements AreaService {
 
     @Override
     public List<Area> getAreas() {
-        return areaRepository.findAll();
+        return areaRepository.findAllByOrderByNameAsc();
     }
 
     @Override

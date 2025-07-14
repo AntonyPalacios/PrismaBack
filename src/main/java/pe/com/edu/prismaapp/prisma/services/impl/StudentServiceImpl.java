@@ -7,7 +7,6 @@ import pe.com.edu.prismaapp.prisma.entities.Student;
 import pe.com.edu.prismaapp.prisma.entities.StudentStage;
 import pe.com.edu.prismaapp.prisma.entities.StudentStageUser;
 import pe.com.edu.prismaapp.prisma.repositories.StudentRepository;
-import pe.com.edu.prismaapp.prisma.repositories.StudentStageRepository;
 import pe.com.edu.prismaapp.prisma.repositories.StudentStageUserRepository;
 import pe.com.edu.prismaapp.prisma.services.*;
 
@@ -50,7 +49,7 @@ public class StudentServiceImpl implements StudentService {
 
         areaService.getAreaById(studentDTO.getAreaId()).ifPresent(student::setArea);
         studentRepository.save(student);
-        StudentStage studentStage = studentStageService.saveStudent(student);
+        StudentStage studentStage = studentStageService.saveStudent(student,studentDTO.isActive());
         StudentStageUser studentStageUser = new StudentStageUser();
         studentStageUser.setStudentStage(studentStage);
         studentStageUser.setUser(student.getTutor());
@@ -58,6 +57,29 @@ public class StudentServiceImpl implements StudentService {
 
 
         studentDTO.setId(student.getId());
+        return studentDTO;
+    }
+
+    @Override
+    public StudentDTO update(Long id, StudentDTO studentDTO) {
+        Student student = studentRepository.findById(id).orElseThrow(() -> new RuntimeException("Student not found"));
+        student.setName(studentDTO.getName());
+        student.setEmail(studentDTO.getEmail());
+        student.setPhone(studentDTO.getPhone());
+        student.setDni(studentDTO.getDni());
+
+        //buscar id del tutor
+        if(studentDTO.getTutorId()>0){
+            userService.findTutorById(studentDTO.getTutorId()).ifPresent(student::setTutor);
+        }
+
+        areaService.getAreaById(studentDTO.getAreaId()).ifPresent(student::setArea);
+        studentRepository.save(student);
+        StudentStage studentStage = studentStageService.updateStudent(student,studentDTO);
+        StudentStageUser studentStageUser = studentStageUserRepository.findByStudentStage_Id(studentStage.getId());
+        studentStageUser.setUser(student.getTutor());
+        studentStageUserRepository.save(studentStageUser);
+
         return studentDTO;
     }
 
@@ -85,6 +107,7 @@ public class StudentServiceImpl implements StudentService {
             studentDTO.setAreaId((Long) student[5]);
             studentDTO.setTutorId((Long) student[6]);
             studentDTO.setActive((Boolean) student[7]);
+            studentDTO.setStageId((Long) student[8]);
             studentDTOList.add(studentDTO);
         }
 

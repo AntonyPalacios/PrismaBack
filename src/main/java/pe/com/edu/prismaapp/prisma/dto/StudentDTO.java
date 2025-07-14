@@ -16,6 +16,7 @@ public class StudentDTO {
     private String dni;
     private Long tutorId;
     private Long areaId;
+    private Long stageId;
     @JsonProperty("isActive")
     private boolean isActive;
 }
