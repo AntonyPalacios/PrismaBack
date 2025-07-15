@@ -31,6 +31,11 @@ public class StudentController {
         StudentDTO c = studentService.update(id, studentDTO);
         return ResponseEntity.status(HttpStatus.OK).body(c);
     }
+    @DeleteMapping("/{id}")
+    ResponseEntity<Long> deleteStudent(@PathVariable Long id) {
+        Long deletedId = studentService.delete(id);
+        return ResponseEntity.status(HttpStatus.OK).body(deletedId);
+    }
 
     @GetMapping
     ResponseEntity<List<StudentDTO>> getAllStudentsByStage(@RequestParam(name = "stageId") Long stageId,

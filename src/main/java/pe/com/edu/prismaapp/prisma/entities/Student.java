@@ -23,6 +23,7 @@ public class Student {
     private String phone;
     @Column(unique=true)
     private String dni;
+    private boolean deleted;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_user")

@@ -11,4 +11,6 @@ public interface StudentService {
     List<StudentDTO> findAll(Long stageId, Optional<Long> userId);
 
     StudentDTO update(Long id, StudentDTO studentDTO);
+
+    Long delete(Long id);
 }

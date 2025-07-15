@@ -5,4 +5,6 @@ import pe.com.edu.prismaapp.prisma.entities.StudentStage;
 
 public interface StudentStageRepository extends JpaRepository<StudentStage, Long> {
     StudentStage findByStudent_IdAndStage_Id(Long studentId, Long stageId);
+
+    void deleteByStudent_Id(Long id);
 }
