@@ -1,6 +1,7 @@
 package pe.com.edu.prismaapp.prisma.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import pe.com.edu.prismaapp.prisma.entities.Stage;
@@ -18,6 +19,8 @@ public class StageDTO {
     @JsonFormat(pattern="dd/MM/yyyy")
     private Date endDate;
     private Long idCycle;
+    @JsonProperty("isCurrent")
+    private boolean isCurrent;
 
     public StageDTO(Stage stage) {
         this.id = stage.getId();
@@ -25,5 +28,6 @@ public class StageDTO {
         this.startDate = stage.getStartDate();
         this.endDate = stage.getEndDate();
         this.idCycle = stage.getCycle().getId();
+        this.isCurrent = stage.isCurrent();
     }
 }

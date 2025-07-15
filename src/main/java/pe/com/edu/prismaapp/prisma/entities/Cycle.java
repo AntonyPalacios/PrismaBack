@@ -3,9 +3,7 @@ package pe.com.edu.prismaapp.prisma.entities;
 import jakarta.persistence.*;
 import lombok.Data;
 
-import java.util.ArrayList;
 import java.util.Date;
-import java.util.List;
 
 @Entity
 @Table(name = "TCYCLE")
@@ -22,5 +20,6 @@ public class Cycle {
     private Date startDate;
 
     private Date endDate;
+    private boolean current;
 
 }

@@ -17,12 +17,13 @@ public class Student {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String firstname;
-    private String lastname;
+    @Column(nullable = false)
+    private String name;
     private String email;
-    private String cellphone;
+    private String phone;
     @Column(unique=true)
     private String dni;
+    private boolean deleted;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_user")
@@ -36,6 +37,6 @@ public class Student {
     private List<Parent> parents;
 
     @OneToMany(mappedBy = "student", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<StudentStage> cycles = new ArrayList<>();
+    private List<StudentStage> stages = new ArrayList<>();
 
 }

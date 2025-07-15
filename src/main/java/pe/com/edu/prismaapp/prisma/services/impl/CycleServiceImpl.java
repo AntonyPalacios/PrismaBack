@@ -5,6 +5,7 @@ import pe.com.edu.prismaapp.prisma.dto.CycleDTO;
 import pe.com.edu.prismaapp.prisma.entities.Cycle;
 import pe.com.edu.prismaapp.prisma.repositories.CycleRepository;
 import pe.com.edu.prismaapp.prisma.services.CycleService;
+import pe.com.edu.prismaapp.prisma.util.UtilHelper;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -24,8 +25,14 @@ public class CycleServiceImpl implements CycleService {
         cycle.setName(cycleDTO.getName());
         cycle.setStartDate(cycleDTO.getStartDate());
         cycle.setEndDate(cycleDTO.getEndDate());
+        boolean isCurrent = UtilHelper.validateCurrent(cycleDTO.getStartDate(),cycleDTO.getEndDate());
+        cycle.setCurrent(isCurrent);
         cycle = cycleRepository.save(cycle);
+        if(isCurrent){
+            cycleRepository.setCurrentFalseOthers(cycle.getId());
+        }
         cycleDTO.setId(cycle.getId());
+        cycleDTO.setCurrent(isCurrent);
         return cycleDTO;
     }
 
@@ -44,8 +51,13 @@ public class CycleServiceImpl implements CycleService {
         cycle.setName(cycleDTO.getName());
         cycle.setStartDate(cycleDTO.getStartDate());
         cycle.setEndDate(cycleDTO.getEndDate());
+        boolean isCurrent = UtilHelper.validateCurrent(cycleDTO.getStartDate(),cycleDTO.getEndDate());
+        cycle.setCurrent(isCurrent);
         cycleRepository.save(cycle);
-        cycleDTO.setId(cycle.getId());
+        if(isCurrent){
+            cycleRepository.setCurrentFalseOthers(cycle.getId());
+        }
+        cycleDTO.setCurrent(isCurrent);
         return cycleDTO;
     }
 
@@ -54,5 +66,11 @@ public class CycleServiceImpl implements CycleService {
         Cycle cycle = cycleRepository.findById(id).orElseThrow();
         cycleRepository.delete(cycle);
         return true;
+    }
+
+    @Override
+    public CycleDTO getCurrentCycle() {
+        Cycle cycle = cycleRepository.findCycleByCurrentTrue();
+        return new CycleDTO(cycle);
     }
 }

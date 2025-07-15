@@ -4,6 +4,7 @@ import pe.com.edu.prismaapp.prisma.dto.StageDTO;
 import pe.com.edu.prismaapp.prisma.entities.Stage;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface StageService {
 
@@ -14,4 +15,8 @@ public interface StageService {
     StageDTO update(Long id, StageDTO stageDTO);
 
     boolean delete(Long id);
+
+    Optional<Stage> getCurrentStage();
+
+    StageDTO getCurrentStageDTO();
 }

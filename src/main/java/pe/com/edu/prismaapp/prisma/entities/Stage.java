@@ -23,6 +23,8 @@ public class Stage {
 
     private Date endDate;
 
+    private boolean current;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_cycle")
     private Cycle cycle;
