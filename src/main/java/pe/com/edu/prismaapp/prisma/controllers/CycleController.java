@@ -21,6 +21,11 @@ public class CycleController {
         return ResponseEntity.ok(cycleService.findAll());
     }
 
+    @GetMapping("/current")
+    ResponseEntity<Object> getCurrentCycle() {
+        return ResponseEntity.ok(cycleService.getCurrentCycle());
+    }
+
     @PostMapping
     ResponseEntity<CycleDTO> createCycle(@RequestBody CycleDTO cycle) {
         CycleDTO c = cycleService.save(cycle);

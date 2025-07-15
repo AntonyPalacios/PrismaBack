@@ -14,6 +14,8 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
             "FROM StudentStageUser A " +
             "INNER JOIN StudentStage B on A.studentStage.id=B.id " +
             "inner join Student C on B.student.id=C.id " +
-            "where B.stage.id= :idStage ")
-    List<Object[]> findStudentsByStage(Long idStage);
+            "where B.stage.id= :idStage " +
+            "AND (:idUser IS NULL OR :idUser = 0 OR A.user.id = :idUser) " +
+            "ORDER BY C.name")
+    List<Object[]> findStudentsByStage(Long idStage, Long idUser);
 }

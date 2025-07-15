@@ -23,15 +23,15 @@ public class StudentServiceImpl implements StudentService {
     private final AreaService areaService;
     private final StudentStageService studentStageService;
     private final StudentStageUserRepository studentStageUserRepository;
-    private final StageService stageService;
 
-    public StudentServiceImpl(StudentRepository studentRepository, UserService userService, AreaService areaService, StudentStageService stageService, StudentStageUserRepository studentStageUserRepository, StageService stageService1) {
+    public StudentServiceImpl(StudentRepository studentRepository, UserService userService,
+                              AreaService areaService, StudentStageService stageService,
+                              StudentStageUserRepository studentStageUserRepository) {
         this.studentRepository = studentRepository;
         this.userService = userService;
         this.areaService = areaService;
         this.studentStageService = stageService;
         this.studentStageUserRepository = studentStageUserRepository;
-        this.stageService = stageService1;
     }
 
     @Override
@@ -71,6 +71,8 @@ public class StudentServiceImpl implements StudentService {
         //buscar id del tutor
         if(studentDTO.getTutorId()>0){
             userService.findTutorById(studentDTO.getTutorId()).ifPresent(student::setTutor);
+        }else{
+            student.setTutor(null);
         }
 
         areaService.getAreaById(studentDTO.getAreaId()).ifPresent(student::setArea);
@@ -84,19 +86,14 @@ public class StudentServiceImpl implements StudentService {
     }
 
     @Override
-    public List<StudentDTO> findAll(Long idStage) {
-        List<Object[]> studentsList = new ArrayList<>();
+    public List<StudentDTO> findAll(Long stageId, Optional<Long> userId) {
+        List<Object[]> studentsList;
         List<StudentDTO> studentDTOList = new ArrayList<>();
-        if(idStage == null){
-            Optional<Stage> optionalStage = stageService.getCurrentStage();
-            if(optionalStage.isPresent()){
-                Stage stage = optionalStage.get();
-                studentsList = studentRepository.findStudentsByStage(stage.getId());
-            }
-        }else{
-            studentsList = studentRepository.findStudentsByStage(idStage);
+        Long currentUser = null;
+        if(userId.isPresent()){
+            currentUser = userId.get();
         }
-
+        studentsList = studentRepository.findStudentsByStage(stageId,currentUser);
         for (Object[] student : studentsList) {
             StudentDTO studentDTO = new StudentDTO();
             studentDTO.setId((Long) student[0]);

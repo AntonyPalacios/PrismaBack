@@ -6,6 +6,8 @@ import org.springframework.web.bind.annotation.*;
 import pe.com.edu.prismaapp.prisma.dto.StageDTO;
 import pe.com.edu.prismaapp.prisma.services.StageService;
 
+import java.util.Optional;
+
 @RestController
 @RequestMapping("/stage")
 public class StageController {
@@ -19,6 +21,12 @@ public class StageController {
     @GetMapping
     ResponseEntity<Object> getAllStages(@RequestParam Long idCycle) {
         return ResponseEntity.ok(stageService.findAll(idCycle));
+    }
+
+    @GetMapping("/current")
+    ResponseEntity<Object> getCurrentStage() {
+
+        return ResponseEntity.ok(stageService.getCurrentStageDTO());
     }
 
     @PostMapping

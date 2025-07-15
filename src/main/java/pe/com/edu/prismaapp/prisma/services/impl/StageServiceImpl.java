@@ -8,6 +8,7 @@ import pe.com.edu.prismaapp.prisma.entities.Stage;
 import pe.com.edu.prismaapp.prisma.repositories.CycleRepository;
 import pe.com.edu.prismaapp.prisma.repositories.StageRepository;
 import pe.com.edu.prismaapp.prisma.services.StageService;
+import pe.com.edu.prismaapp.prisma.util.UtilHelper;
 
 import java.util.Date;
 import java.util.List;
@@ -31,10 +32,15 @@ public class StageServiceImpl implements StageService {
         stage.setName(stageDTO.getName());
         stage.setStartDate(stageDTO.getStartDate());
         stage.setEndDate(stageDTO.getEndDate());
+        boolean isCurrent = UtilHelper.validateCurrent(stageDTO.getStartDate(),stageDTO.getEndDate());
+        stage.setCurrent(isCurrent);
         Cycle cycle = cycleRepository.findById(stageDTO.getIdCycle())
                 .orElseThrow(() -> new EntityNotFoundException("Ciclo no encontrado con ID: " + stageDTO.getIdCycle()));
         stage.setCycle(cycle);
-        stageRepository.save(stage);
+        stage = stageRepository.save(stage);
+        if(isCurrent){
+            stageRepository.setCurrentFalseOthers(stage.getId());
+        }
         stageDTO.setId(stage.getId());
         return stageDTO;
     }
@@ -49,14 +55,19 @@ public class StageServiceImpl implements StageService {
     public StageDTO update(Long id, StageDTO stageDTO) {
         Optional<Stage> optionalStage = stageRepository.findById(id);
         if (optionalStage.isPresent()) {
-            Stage stage1 = optionalStage.get();
-            stage1.setName(stageDTO.getName());
-            stage1.setStartDate(stageDTO.getStartDate());
-            stage1.setEndDate(stageDTO.getEndDate());
-            stageRepository.save(stage1);
+            Stage stage = optionalStage.get();
+            stage.setName(stageDTO.getName());
+            stage.setStartDate(stageDTO.getStartDate());
+            stage.setEndDate(stageDTO.getEndDate());
+            boolean isCurrent = UtilHelper.validateCurrent(stageDTO.getStartDate(),stageDTO.getEndDate());
+            stage.setCurrent(isCurrent);
+            stage = stageRepository.save(stage);
+            if(isCurrent){
+                stageRepository.setCurrentFalseOthers(stage.getId());
+            }
             return stageDTO;
         }
-        return null;
+        return stageDTO;
     }
 
     @Override
@@ -73,5 +84,17 @@ public class StageServiceImpl implements StageService {
     public Optional<Stage> getCurrentStage() {
         Date currentDate = new Date();
         return stageRepository.findStageByStartDateBeforeAndEndDateAfter(currentDate,currentDate);
+    }
+
+    @Override
+    public StageDTO getCurrentStageDTO() {
+        Optional<Stage> optionalStage =  this.getCurrentStage();
+        if(optionalStage.isPresent()){
+            Stage stage = optionalStage.get();
+            return new StageDTO(stage);
+        }else{
+            return null;
+        }
+
     }
 }

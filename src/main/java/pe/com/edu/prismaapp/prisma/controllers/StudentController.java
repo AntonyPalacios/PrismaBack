@@ -4,10 +4,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import pe.com.edu.prismaapp.prisma.dto.StudentDTO;
-import pe.com.edu.prismaapp.prisma.dto.UserDTO;
 import pe.com.edu.prismaapp.prisma.services.StudentService;
 
 import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/students")
@@ -33,8 +33,9 @@ public class StudentController {
     }
 
     @GetMapping
-    ResponseEntity<List<StudentDTO>> getAllStudentsByStage(@RequestParam(name = "idStage",required = false) Long idStage) {
-        List<StudentDTO> students = studentService.findAll(idStage);
+    ResponseEntity<List<StudentDTO>> getAllStudentsByStage(@RequestParam(name = "stageId") Long stageId,
+                                                           @RequestParam(name = "userId", required = false) Optional<Long> userId) {
+        List<StudentDTO> students = studentService.findAll(stageId, userId);
         return ResponseEntity.status(HttpStatus.OK).body(students);
     }
 }
