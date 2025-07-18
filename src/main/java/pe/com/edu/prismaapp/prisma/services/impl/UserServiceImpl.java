@@ -1,5 +1,8 @@
 package pe.com.edu.prismaapp.prisma.services.impl;
 
+import jakarta.persistence.EntityNotFoundException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import pe.com.edu.prismaapp.prisma.dto.UserDTO;
 import pe.com.edu.prismaapp.prisma.entities.Role;
@@ -8,9 +11,7 @@ import pe.com.edu.prismaapp.prisma.repositories.RoleRepository;
 import pe.com.edu.prismaapp.prisma.repositories.UserRepository;
 import pe.com.edu.prismaapp.prisma.services.UserService;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 @Service
 public class UserServiceImpl implements UserService {
@@ -65,7 +66,7 @@ public class UserServiceImpl implements UserService {
         user.setEmail(userDTO.getEmail());
         user.setActive(userDTO.isActive());
 
-        List<Role> roles = new ArrayList<>();
+        Set<Role> roles = new HashSet<>();
         if(userDTO.isAdmin()){
             Role role = roleRepository.findByName("ROLE_ADMIN").orElseThrow(() -> new RuntimeException("Role not found"));
             roles.add(role);
@@ -88,5 +89,19 @@ public class UserServiceImpl implements UserService {
     @Override
     public Optional<User> findTutorById(Long id) {
         return userRepository.findByIdAndRoleName(id,"ROLE_TUTOR");
+    }
+
+    @Override
+    public UserDTO getCurrentUser() {
+        UserDTO userDTO = new UserDTO();
+        Authentication authenticationToken = SecurityContextHolder.getContext().getAuthentication();
+        User user =  userRepository.findByEmail(authenticationToken.getName()).orElseThrow(EntityNotFoundException::new);
+        userDTO.setId(user.getId());
+        userDTO.setName(user.getName());
+        userDTO.setEmail(user.getEmail());
+        userDTO.setActive(user.isActive());
+
+        return userDTO;
+
     }
 }

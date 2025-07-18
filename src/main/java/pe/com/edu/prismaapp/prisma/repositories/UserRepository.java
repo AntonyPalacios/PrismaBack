@@ -9,4 +9,7 @@ import java.util.Optional;
 public interface UserRepository extends JpaRepository<User, Long> {
     @Query("SELECT u FROM User u JOIN u.roles r WHERE u.id = :userId AND r.name = :roleName")
     Optional<User> findByIdAndRoleName(Long userId, String roleName);
+
+    Optional<User> findByEmail(String email);
+    Optional<User> findByProviderId(String providerId);
 }

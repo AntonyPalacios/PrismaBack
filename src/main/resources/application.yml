@@ -1,0 +1,41 @@
+# src/main/resources/application.yml
+spring:
+  application:
+    name: prismaBack
+  datasource:
+    url: jdbc:mysql://localhost:3306/db_prisma
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    database-platform: org.hibernate.dialect.MySQLDialect
+    show-sql: true
+    hibernate:
+      ddl-auto: update
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: 796230134807-05r2cu8klg833h0cg8mt5j83oa94e204.apps.googleusercontent.com
+            client-secret: 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
+            scope:
+              - openid
+              - email
+              - profile
+        provider:
+          google:
+            user-name-attribute: email
+
+# Configuración JWT
+jwt:
+  secret: ESTA_ES_UNA_CLAVE_SECRETA_MUY_LARGA_Y_SEGURA_PARA_JWT_DEBE_SER_AL_MENOS_256_BITS
+  expiration: 3600000
+
+server:
+  port: 8080
+
+# Configuración de CORS para permitir peticiones desde tu frontend React
+cors:
+  allowedOrigins: http://localhost:5173
+
