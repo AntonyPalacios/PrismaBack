@@ -17,8 +17,8 @@ spring:
       client:
         registration:
           google:
-            client-id: 796230134807-05r2cu8klg833h0cg8mt5j83oa94e204.apps.googleusercontent.com
-            client-secret: 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
+            client-id: ${MY_APP_OAUTH_CLIENT_ID}
+            client-secret: ${MY_APP_OAUTH_CLIENT_SECRET}
             scope:
               - openid
               - email
@@ -29,7 +29,7 @@ spring:
 
 # Configuración JWT
 jwt:
-  secret: ESTA_ES_UNA_CLAVE_SECRETA_MUY_LARGA_Y_SEGURA_PARA_JWT_DEBE_SER_AL_MENOS_256_BITS
+  secret: ${MY_APP_JWT_ENCRYPTION_KEY}
   expiration: 3600000
 
 server:
