@@ -7,7 +7,7 @@ import pe.com.edu.prismaapp.prisma.dto.CycleDTO;
 import pe.com.edu.prismaapp.prisma.services.CycleService;
 
 @RestController
-@RequestMapping("/cycle")
+@RequestMapping("/cycles")
 public class CycleController {
 
     private CycleService cycleService;

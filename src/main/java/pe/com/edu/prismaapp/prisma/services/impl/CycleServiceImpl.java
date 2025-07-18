@@ -1,6 +1,7 @@
 package pe.com.edu.prismaapp.prisma.services.impl;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import pe.com.edu.prismaapp.prisma.dto.CycleDTO;
 import pe.com.edu.prismaapp.prisma.entities.Cycle;
 import pe.com.edu.prismaapp.prisma.repositories.CycleRepository;
@@ -46,6 +47,7 @@ public class CycleServiceImpl implements CycleService {
     }
 
     @Override
+    @Transactional
     public CycleDTO update(Long id, CycleDTO cycleDTO) {
         Cycle cycle = cycleRepository.findById(id).orElseThrow();
         cycle.setName(cycleDTO.getName());
@@ -55,7 +57,7 @@ public class CycleServiceImpl implements CycleService {
         cycle.setCurrent(isCurrent);
         cycleRepository.save(cycle);
         if(isCurrent){
-            cycleRepository.setCurrentFalseOthers(cycle.getId());
+            cycleRepository.setCurrentFalseOthers(id);
         }
         cycleDTO.setCurrent(isCurrent);
         return cycleDTO;

@@ -9,7 +9,7 @@ import pe.com.edu.prismaapp.prisma.services.StageService;
 import java.util.Optional;
 
 @RestController
-@RequestMapping("/stage")
+@RequestMapping("/stages")
 public class StageController {
 
     private StageService stageService;
