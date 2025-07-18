@@ -14,4 +14,6 @@ public interface UserService {
     List<UserDTO> findAll();
 
     Optional<User> findTutorById(Long id);
+
+    UserDTO getCurrentUser();
 }
