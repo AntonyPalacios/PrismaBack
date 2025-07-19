@@ -2,6 +2,7 @@ package pe.com.edu.prismaapp.prisma.services.impl;
 
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import pe.com.edu.prismaapp.prisma.dto.StageDTO;
 import pe.com.edu.prismaapp.prisma.entities.Cycle;
 import pe.com.edu.prismaapp.prisma.entities.Stage;
@@ -52,6 +53,7 @@ public class StageServiceImpl implements StageService {
     }
 
     @Override
+    @Transactional
     public StageDTO update(Long id, StageDTO stageDTO) {
         Optional<Stage> optionalStage = stageRepository.findById(id);
         if (optionalStage.isPresent()) {
