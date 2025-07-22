@@ -36,7 +36,7 @@ public class Student {
     @ManyToMany(fetch = FetchType.LAZY)
     private List<Parent> parents;
 
-    @OneToMany(mappedBy = "student", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "student")
     private List<StudentStage> stages = new ArrayList<>();
 
 }

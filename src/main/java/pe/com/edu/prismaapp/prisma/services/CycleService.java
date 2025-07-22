@@ -11,7 +11,7 @@ public interface CycleService {
 
     CycleDTO update(Long id, CycleDTO cycle);
 
-    boolean delete(Long id);
+    void delete(Long id);
 
     CycleDTO getCurrentCycle();
 }

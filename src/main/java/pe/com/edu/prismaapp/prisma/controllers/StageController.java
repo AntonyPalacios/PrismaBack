@@ -1,12 +1,11 @@
 package pe.com.edu.prismaapp.prisma.controllers;
 
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import pe.com.edu.prismaapp.prisma.dto.StageDTO;
 import pe.com.edu.prismaapp.prisma.services.StageService;
-
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/stages")
@@ -30,20 +29,20 @@ public class StageController {
     }
 
     @PostMapping
-    ResponseEntity<Object> createStage(@RequestBody StageDTO stage) {
+    ResponseEntity<Object> createStage(@RequestBody @Valid StageDTO stage) {
         StageDTO c = stageService.save(stage);
         return ResponseEntity.status(HttpStatus.OK).body(c);
     }
 
     @PutMapping("/{id}")
-    ResponseEntity<Object> updateStage(@PathVariable Long id,@RequestBody StageDTO stageDTO) {
+    ResponseEntity<Object> updateStage(@PathVariable Long id,@RequestBody @Valid StageDTO stageDTO) {
         StageDTO c = stageService.update(id,stageDTO);
         return ResponseEntity.status(HttpStatus.OK).body(c);
     }
 
     @DeleteMapping("/{id}")
     ResponseEntity<Object> deleteStage(@PathVariable Long id) {
-        boolean c = stageService.delete(id);
-        return ResponseEntity.status(HttpStatus.OK).body(c);
+        stageService.delete(id);
+        return ResponseEntity.noContent().build();
     }
 }

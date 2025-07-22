@@ -29,20 +29,11 @@ public class User {
     private String provider; // "google"
     private String providerId; // ID único de Google de Google
 
-    @ManyToMany(fetch = FetchType.EAGER)
+    @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
             name = "TROLEUSER",
             joinColumns = @JoinColumn(name = "id_role"),
             inverseJoinColumns = @JoinColumn(name = "id_user"))
-    private Set<Role> roles;
+    private List<Role> roles;
 
-    public User(String email, String name, String picture, String provider, String providerId) {
-        this.email = email;
-        this.name = name;
-        this.picture = picture;
-        this.provider = provider;
-        this.providerId = providerId;
-        this.active = true; // Por defecto activo para nuevos usuarios OAuth
-        this.roles = new HashSet<>(); // Asegura que se inicialice
-    }
 }

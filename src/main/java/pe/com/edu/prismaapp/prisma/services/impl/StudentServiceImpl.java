@@ -8,8 +8,6 @@ import pe.com.edu.prismaapp.prisma.entities.Student;
 import pe.com.edu.prismaapp.prisma.entities.StudentStage;
 import pe.com.edu.prismaapp.prisma.entities.StudentStageUser;
 import pe.com.edu.prismaapp.prisma.repositories.StudentRepository;
-import pe.com.edu.prismaapp.prisma.repositories.StudentStageRepository;
-import pe.com.edu.prismaapp.prisma.repositories.StudentStageUserRepository;
 import pe.com.edu.prismaapp.prisma.services.*;
 
 import java.util.ArrayList;
@@ -23,32 +21,37 @@ public class StudentServiceImpl implements StudentService {
     private final StudentRepository studentRepository;
     private final UserService userService;
     private final AreaService areaService;
+    private final StageService stageService;
     private final StudentStageService studentStageService;
-    private final StudentStageUserRepository studentStageUserRepository;
-    private final StudentStageRepository studentStageRepository;
+    private final StudentStageUserService studentStageUserService;
 
     public StudentServiceImpl(StudentRepository studentRepository, UserService userService,
-                              AreaService areaService, StudentStageService stageService,
-                              StudentStageUserRepository studentStageUserRepository, StudentStageRepository studentStageRepository) {
+                              AreaService areaService, StudentStageUserService studentStageUserService,
+                              StudentStageService studentStageService, StageService stageService) {
         this.studentRepository = studentRepository;
         this.userService = userService;
         this.areaService = areaService;
-        this.studentStageService = stageService;
-        this.studentStageUserRepository = studentStageUserRepository;
-        this.studentStageRepository = studentStageRepository;
+        this.studentStageUserService = studentStageUserService;
+        this.studentStageService = studentStageService;
+        this.stageService = stageService;
     }
 
     @Override
+    @Transactional
     public StudentDTO save(StudentDTO studentDTO) {
         Student student = new Student();
         mapStudentValues(studentDTO, student);
 
-        studentRepository.save(student);
-        StudentStage studentStage = studentStageService.saveStudent(student,studentDTO.isActive());
+        Optional<Stage> optionalStage = stageService.getCurrentStage();
+        Stage stage = null;
+        if(optionalStage.isPresent()){
+            stage = optionalStage.get();
+        }
+        StudentStage studentStage = studentStageService.saveStudent(student,stage,studentDTO.isActive());
         StudentStageUser studentStageUser = new StudentStageUser();
         studentStageUser.setStudentStage(studentStage);
         studentStageUser.setUser(student.getTutor());
-        studentStageUserRepository.save(studentStageUser);
+        studentStageUserService.save(studentStageUser);
 
 
         studentDTO.setId(student.getId());
@@ -56,15 +59,15 @@ public class StudentServiceImpl implements StudentService {
     }
 
     @Override
+    @Transactional
     public StudentDTO update(Long id, StudentDTO studentDTO) {
         Student student = studentRepository.findById(id).orElseThrow(() -> new RuntimeException("Student not found"));
         mapStudentValues(studentDTO, student);
 
-        studentRepository.save(student);
         StudentStage studentStage = studentStageService.updateStudent(student,studentDTO);
-        StudentStageUser studentStageUser = studentStageUserRepository.findByStudentStage_Id(studentStage.getId());
+        StudentStageUser studentStageUser = studentStageUserService.findByStudentStageId(studentStage.getId());
         studentStageUser.setUser(student.getTutor());
-        studentStageUserRepository.save(studentStageUser);
+        studentStageUserService.save(studentStageUser);
 
         return studentDTO;
     }
@@ -86,18 +89,18 @@ public class StudentServiceImpl implements StudentService {
         }else {
             student.setArea(null);
         }
+        studentRepository.save(student);
     }
 
     @Override
     @Transactional
-    public Long delete(Long id) {
+    public void delete(Long id) {
         //borrar de StudentStageUser
-        studentStageUserRepository.deleteByStudentStage_Student_Id(id);
+        studentStageUserService.deleteStudent(id);
         //borrar de StudentStage
-        studentStageRepository.deleteByStudent_Id(id);
+        studentStageService.deleteStudent(id);
         //borrar de Student
         studentRepository.deleteById(id);
-        return id;
     }
 
     @Override

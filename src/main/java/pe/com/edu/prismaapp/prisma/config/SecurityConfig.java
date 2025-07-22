@@ -24,10 +24,10 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
-import pe.com.edu.prismaapp.prisma.services.CustomOAuth2UserService;
+import pe.com.edu.prismaapp.prisma.auth.CustomOAuth2UserService;
 import pe.com.edu.prismaapp.prisma.auth.CustomUserDetailsService;
 import pe.com.edu.prismaapp.prisma.auth.JwtRequestFilter;
-import pe.com.edu.prismaapp.prisma.util.JwtUtil;
+import pe.com.edu.prismaapp.prisma.auth.JwtUtil;
 
 import java.util.Arrays;
 import java.util.List;
@@ -75,7 +75,8 @@ public class SecurityConfig implements WebMvcConfigurer { // Implementa WebMvcCo
                  .cors(cors -> cors.configurationSource(corsConfigurationSource())) // CORS manejado por WebMvcConfigurer
                 .authorizeHttpRequests(authorize -> authorize
                         // Endpoints públicos (login, OAuth2 redirecciones, errores)
-                        .requestMatchers("/auth/**", "/login/**", "/oauth2/**", "/error").permitAll()
+                        .requestMatchers("/auth/**", "/login/**", "/oauth2/**", "/error",
+                                "/swagger-ui/**", "/v3/api-docs/**", "/swagger-resources/**", "/swagger-resources").permitAll()
                         // Ejemplo de protección por rol (descomentar y ajustar según tus necesidades)
                         // .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         // .requestMatchers("/api/tutor/**").hasAnyRole("ADMIN", "TUTOR")

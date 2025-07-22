@@ -1,4 +1,4 @@
-package pe.com.edu.prismaapp.prisma.services;
+package pe.com.edu.prismaapp.prisma.auth;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;

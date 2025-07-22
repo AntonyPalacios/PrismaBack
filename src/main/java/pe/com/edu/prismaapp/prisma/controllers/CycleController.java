@@ -1,5 +1,6 @@
 package pe.com.edu.prismaapp.prisma.controllers;
 
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -27,20 +28,20 @@ public class CycleController {
     }
 
     @PostMapping
-    ResponseEntity<CycleDTO> createCycle(@RequestBody CycleDTO cycle) {
+    ResponseEntity<CycleDTO> createCycle(@RequestBody @Valid CycleDTO cycle) {
         CycleDTO c = cycleService.save(cycle);
-        return ResponseEntity.status(HttpStatus.OK).body(c);
+        return ResponseEntity.status(HttpStatus.CREATED).body(c);
     }
 
     @PutMapping("/{id}")
-    ResponseEntity<CycleDTO> updateCycle(@PathVariable Long id,@RequestBody CycleDTO cycle) {
+    ResponseEntity<CycleDTO> updateCycle(@PathVariable Long id,@RequestBody @Valid CycleDTO cycle) {
         CycleDTO c = cycleService.update(id,cycle);
         return ResponseEntity.status(HttpStatus.OK).body(c);
     }
 
     @DeleteMapping("/{id}")
     ResponseEntity<Object> deleteCycle(@PathVariable Long id) {
-        boolean c = cycleService.delete(id);
-        return ResponseEntity.status(HttpStatus.OK).body(c);
+        cycleService.delete(id);
+        return ResponseEntity.noContent().build();
     }
 }

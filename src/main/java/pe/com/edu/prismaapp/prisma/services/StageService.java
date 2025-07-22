@@ -14,7 +14,7 @@ public interface StageService {
 
     StageDTO update(Long id, StageDTO stageDTO);
 
-    boolean delete(Long id);
+    void delete(Long id);
 
     Optional<Stage> getCurrentStage();
 

@@ -1,5 +1,6 @@
 package pe.com.edu.prismaapp.prisma.auth;
 
+import org.springframework.transaction.annotation.Transactional;
 import pe.com.edu.prismaapp.prisma.entities.User;
 import pe.com.edu.prismaapp.prisma.repositories.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +21,7 @@ public class CustomUserDetailsService implements UserDetailsService {
     private UserRepository userRepository;
 
     @Override
+    @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));

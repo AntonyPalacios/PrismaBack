@@ -1,28 +1,25 @@
 package pe.com.edu.prismaapp.prisma.services.impl;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import pe.com.edu.prismaapp.prisma.dto.StudentDTO;
 import pe.com.edu.prismaapp.prisma.entities.Stage;
 import pe.com.edu.prismaapp.prisma.entities.Student;
 import pe.com.edu.prismaapp.prisma.entities.StudentStage;
-import pe.com.edu.prismaapp.prisma.repositories.StageRepository;
 import pe.com.edu.prismaapp.prisma.repositories.StudentStageRepository;
-import pe.com.edu.prismaapp.prisma.services.StageService;
 import pe.com.edu.prismaapp.prisma.services.StudentStageService;
-
-import java.util.Optional;
+import pe.com.edu.prismaapp.prisma.services.StudentStageUserService;
 
 @Service
 public class StudentStageServiceImpl implements StudentStageService {
 
     private final StudentStageRepository studentStageRepository;
-    private final StageService stageService;
-    private final StageRepository stageRepository;
+    private final StudentStageUserService studentStageUserService;
 
-    public StudentStageServiceImpl(StudentStageRepository studentStageRepository, StageService stageService, StageRepository stageRepository) {
+    public StudentStageServiceImpl(StudentStageRepository studentStageRepository,
+                                   StudentStageUserService studentStageUserService) {
         this.studentStageRepository = studentStageRepository;
-        this.stageService = stageService;
-        this.stageRepository = stageRepository;
+        this.studentStageUserService = studentStageUserService;
     }
 
     @Override
@@ -31,10 +28,10 @@ public class StudentStageServiceImpl implements StudentStageService {
     }
 
     @Override
-    public StudentStage saveStudent(Student student, boolean active) {
+    public StudentStage saveStudent(Student student, Stage stage, boolean active) {
         StudentStage studentStage = new StudentStage();
         studentStage.setStudent(student);
-        stageService.getCurrentStage().ifPresent(studentStage::setStage);
+        studentStage.setStage(stage);
         studentStage.setActive(active);
         return studentStageRepository.save(studentStage);
     }
@@ -45,5 +42,20 @@ public class StudentStageServiceImpl implements StudentStageService {
         studentStage.setActive(studentDTO.isActive());
         studentStageRepository.save(studentStage);
         return studentStage;
+    }
+
+    @Override
+    @Transactional
+    public boolean deleteStudentStageByStageId(Long stageId) {
+        //borrar studentStageUser
+        studentStageUserService.deleteByStageId(stageId);
+        studentStageRepository.deleteByStage_Id(stageId);
+        return true;
+    }
+
+    @Override
+    @Transactional
+    public void deleteStudent(Long id) {
+        studentStageRepository.deleteByStudent_Id(id);
     }
 }
