@@ -30,7 +30,7 @@ public class CycleController {
     @PostMapping
     ResponseEntity<CycleDTO> createCycle(@RequestBody @Valid CycleDTO cycle) {
         CycleDTO c = cycleService.save(cycle);
-        return ResponseEntity.status(HttpStatus.CREATED).body(c);
+        return ResponseEntity.status(HttpStatus.OK).body(c);
     }
 
     @PutMapping("/{id}")
