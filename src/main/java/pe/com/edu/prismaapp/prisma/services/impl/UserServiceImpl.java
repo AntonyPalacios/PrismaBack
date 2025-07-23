@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import pe.com.edu.prismaapp.prisma.dto.UserDTO;
 import pe.com.edu.prismaapp.prisma.entities.Role;
 import pe.com.edu.prismaapp.prisma.entities.User;
+import pe.com.edu.prismaapp.prisma.errorHandler.ResourceNotFoundException;
 import pe.com.edu.prismaapp.prisma.repositories.RoleRepository;
 import pe.com.edu.prismaapp.prisma.repositories.UserRepository;
 import pe.com.edu.prismaapp.prisma.services.StudentStageUserService;
@@ -63,7 +64,8 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public UserDTO update(Long idUser, UserDTO userDTO) {
-        User user = userRepository.findById(idUser).orElseThrow(() -> new RuntimeException("User not found"));
+        User user = userRepository.findById(idUser)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con ID: " + idUser));
         mapValues(userDTO, user);
         return userDTO;
     }
@@ -90,7 +92,8 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public void delete(Long id) {
-        User user = userRepository.findById(id).orElseThrow(() -> new RuntimeException("User not found"));
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con ID: " + id));
         studentStageUserService.deleteStudentStageUserByIdUser(user.getId());
         userRepository.delete(user);
     }

@@ -16,7 +16,7 @@ public class CycleDTO {
 
     private Long id;
     @NotBlank
-    @Size(min = 8, max = 15)
+    @Size(min = 4, max = 15)
     private String name;
     @JsonFormat(pattern="dd/MM/yyyy")
     private Date startDate;

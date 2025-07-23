@@ -4,6 +4,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pe.com.edu.prismaapp.prisma.dto.StudentDTO;
 import pe.com.edu.prismaapp.prisma.entities.*;
+import pe.com.edu.prismaapp.prisma.errorHandler.ResourceNotFoundException;
 import pe.com.edu.prismaapp.prisma.repositories.StudentRepository;
 import pe.com.edu.prismaapp.prisma.services.*;
 
@@ -59,7 +60,8 @@ public class StudentServiceImpl implements StudentService {
     @Override
     @Transactional
     public StudentDTO update(Long id, StudentDTO studentDTO) {
-        Student student = studentRepository.findById(id).orElseThrow(() -> new RuntimeException("Student not found"));
+        Student student = studentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Alumno no encontrado con ID: " + id));
         mapStudentValues(studentDTO, student);
 
         StudentStage studentStage = studentStageService.updateStudent(student,studentDTO);
