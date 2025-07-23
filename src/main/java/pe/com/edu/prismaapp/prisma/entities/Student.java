@@ -26,17 +26,13 @@ public class Student {
     private boolean deleted;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "id_user")
-    private User tutor;
-
-    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_area")
     private Area area;
 
     @ManyToMany(fetch = FetchType.LAZY)
     private List<Parent> parents;
 
-    @OneToMany(mappedBy = "student", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "student")
     private List<StudentStage> stages = new ArrayList<>();
 
 }

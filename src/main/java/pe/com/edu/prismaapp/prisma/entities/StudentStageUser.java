@@ -13,11 +13,11 @@ public class StudentStageUser {
     @Column(name = "id_studentstageuser")
     private Long id;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_user")
     private User user;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_student_stage")
     private StudentStage studentStage;
 }

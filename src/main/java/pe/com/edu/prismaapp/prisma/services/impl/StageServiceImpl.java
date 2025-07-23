@@ -9,6 +9,7 @@ import pe.com.edu.prismaapp.prisma.entities.Stage;
 import pe.com.edu.prismaapp.prisma.repositories.CycleRepository;
 import pe.com.edu.prismaapp.prisma.repositories.StageRepository;
 import pe.com.edu.prismaapp.prisma.services.StageService;
+import pe.com.edu.prismaapp.prisma.services.StudentStageService;
 import pe.com.edu.prismaapp.prisma.util.UtilHelper;
 
 import java.util.Date;
@@ -21,15 +22,38 @@ public class StageServiceImpl implements StageService {
 
     private final StageRepository stageRepository;
     private final CycleRepository cycleRepository;
+    private final StudentStageService studentStageService;
 
-    public StageServiceImpl(StageRepository stageRepository, CycleRepository cycleRepository) {
+    public StageServiceImpl(StageRepository stageRepository, CycleRepository cycleRepository, StudentStageService studentStageService) {
         this.stageRepository = stageRepository;
         this.cycleRepository = cycleRepository;
+        this.studentStageService = studentStageService;
+    }
+
+    @Override
+    public List<StageDTO> findAll(Long idCycle) {
+        List<Stage> stages = stageRepository.findAllByCycle_IdOrderByStartDateDesc(idCycle);
+        return stages.stream().map(StageDTO::new).collect(Collectors.toList());
     }
 
     @Override
     public StageDTO save(StageDTO stageDTO) {
         Stage stage = new Stage();
+        mapValues(stageDTO, stage);
+
+        stageDTO.setId(stage.getId());
+        return stageDTO;
+    }
+
+    @Override
+    @Transactional
+    public StageDTO update(Long id, StageDTO stageDTO) {
+        Stage stage = stageRepository.findById(id).orElseThrow();
+        mapValues(stageDTO, stage);
+        return stageDTO;
+    }
+
+    private void mapValues(StageDTO stageDTO, Stage stage) {
         stage.setName(stageDTO.getName());
         stage.setStartDate(stageDTO.getStartDate());
         stage.setEndDate(stageDTO.getEndDate());
@@ -42,44 +66,18 @@ public class StageServiceImpl implements StageService {
         if(isCurrent){
             stageRepository.setCurrentFalseOthers(stage.getId());
         }
-        stageDTO.setId(stage.getId());
-        return stageDTO;
-    }
-
-    @Override
-    public List<StageDTO> findAll(Long idCycle) {
-        List<Stage> stages = stageRepository.findAllByCycle_IdOrderByStartDateDesc(idCycle);
-        return stages.stream().map(StageDTO::new).collect(Collectors.toList());
     }
 
     @Override
     @Transactional
-    public StageDTO update(Long id, StageDTO stageDTO) {
+    public void delete(Long id) {
         Optional<Stage> optionalStage = stageRepository.findById(id);
         if (optionalStage.isPresent()) {
             Stage stage = optionalStage.get();
-            stage.setName(stageDTO.getName());
-            stage.setStartDate(stageDTO.getStartDate());
-            stage.setEndDate(stageDTO.getEndDate());
-            boolean isCurrent = UtilHelper.validateCurrent(stageDTO.getStartDate(),stageDTO.getEndDate());
-            stage.setCurrent(isCurrent);
-            stage = stageRepository.save(stage);
-            if(isCurrent){
-                stageRepository.setCurrentFalseOthers(stage.getId());
-            }
-            return stageDTO;
+            //borrar studentStage
+            studentStageService.deleteStudentStageByStageId(stage.getId());
+            stageRepository.delete(stage);
         }
-        return stageDTO;
-    }
-
-    @Override
-    public boolean delete(Long id) {
-        Optional<Stage> optionalStage = stageRepository.findById(id);
-        if (optionalStage.isPresent()) {
-            Stage stage1 = optionalStage.get();
-            stageRepository.delete(stage1);
-        }
-        return false;
     }
 
     @Override

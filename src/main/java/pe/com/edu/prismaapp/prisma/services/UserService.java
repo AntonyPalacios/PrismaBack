@@ -9,7 +9,7 @@ import java.util.Optional;
 public interface UserService {
     UserDTO save(UserDTO userDTO);
     UserDTO update(Long id, UserDTO userDTO);
-    Long delete(Long id);
+    void delete(Long id);
 
     List<UserDTO> findAll();
 

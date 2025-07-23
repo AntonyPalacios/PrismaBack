@@ -2,6 +2,8 @@ package pe.com.edu.prismaapp.prisma.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import pe.com.edu.prismaapp.prisma.entities.Cycle;
@@ -13,6 +15,8 @@ import java.util.Date;
 public class CycleDTO {
 
     private Long id;
+    @NotBlank
+    @Size(min = 8, max = 15)
     private String name;
     @JsonFormat(pattern="dd/MM/yyyy")
     private Date startDate;

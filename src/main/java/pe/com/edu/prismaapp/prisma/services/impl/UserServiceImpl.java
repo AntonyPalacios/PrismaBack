@@ -4,27 +4,34 @@ import jakarta.persistence.EntityNotFoundException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import pe.com.edu.prismaapp.prisma.dto.UserDTO;
 import pe.com.edu.prismaapp.prisma.entities.Role;
 import pe.com.edu.prismaapp.prisma.entities.User;
 import pe.com.edu.prismaapp.prisma.repositories.RoleRepository;
 import pe.com.edu.prismaapp.prisma.repositories.UserRepository;
+import pe.com.edu.prismaapp.prisma.services.StudentStageUserService;
 import pe.com.edu.prismaapp.prisma.services.UserService;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 
 @Service
 public class UserServiceImpl implements UserService {
 
     private final RoleRepository roleRepository;
     private final UserRepository userRepository;
+    private final StudentStageUserService studentStageUserService;
 
-    public UserServiceImpl(RoleRepository roleRepository, UserRepository userRepository) {
+    public UserServiceImpl(RoleRepository roleRepository, UserRepository userRepository, StudentStageUserService studentStageUserService) {
         this.roleRepository = roleRepository;
         this.userRepository = userRepository;
+        this.studentStageUserService = studentStageUserService;
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<UserDTO> findAll() {
         List<User> users = userRepository.findAll();
         List<UserDTO> userDTOs = new ArrayList<>();
@@ -45,19 +52,19 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional
     public UserDTO save(UserDTO userDTO) {
         User newUser = new User();
         mapValues(userDTO, newUser);
-        newUser = userRepository.save(newUser);
         userDTO.setId(newUser.getId());
         return userDTO;
     }
 
     @Override
+    @Transactional
     public UserDTO update(Long idUser, UserDTO userDTO) {
         User user = userRepository.findById(idUser).orElseThrow(() -> new RuntimeException("User not found"));
         mapValues(userDTO, user);
-        userRepository.save(user);
         return userDTO;
     }
 
@@ -66,7 +73,7 @@ public class UserServiceImpl implements UserService {
         user.setEmail(userDTO.getEmail());
         user.setActive(userDTO.isActive());
 
-        Set<Role> roles = new HashSet<>();
+        List<Role> roles = new ArrayList<>();
         if(userDTO.isAdmin()){
             Role role = roleRepository.findByName("ROLE_ADMIN").orElseThrow(() -> new RuntimeException("Role not found"));
             roles.add(role);
@@ -77,13 +84,15 @@ public class UserServiceImpl implements UserService {
         }
 
         user.setRoles(roles);
+        userRepository.save(user);
     }
 
     @Override
-    public Long delete(Long id) {
+    @Transactional
+    public void delete(Long id) {
         User user = userRepository.findById(id).orElseThrow(() -> new RuntimeException("User not found"));
+        studentStageUserService.deleteStudentStageUserByIdUser(user.getId());
         userRepository.delete(user);
-        return id;
     }
 
     @Override

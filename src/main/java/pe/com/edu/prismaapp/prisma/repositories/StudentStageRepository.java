@@ -7,4 +7,6 @@ public interface StudentStageRepository extends JpaRepository<StudentStage, Long
     StudentStage findByStudent_IdAndStage_Id(Long studentId, Long stageId);
 
     void deleteByStudent_Id(Long id);
+
+    void deleteByStage_Id(Long id);
 }

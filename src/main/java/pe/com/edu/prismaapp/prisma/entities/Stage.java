@@ -29,6 +29,6 @@ public class Stage {
     @JoinColumn(name = "id_cycle")
     private Cycle cycle;
 
-    @OneToMany(mappedBy = "stage", cascade = CascadeType.ALL, orphanRemoval = true,fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "stage", fetch = FetchType.LAZY)
     private List<StudentStage> students = new ArrayList<>();
 }

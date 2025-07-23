@@ -1,5 +1,6 @@
 package pe.com.edu.prismaapp.prisma.controllers;
 
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -20,25 +21,25 @@ public class StudentController {
     }
 
     @PostMapping
-    ResponseEntity<StudentDTO> createStudent(@RequestBody StudentDTO studentDTO) {
+    ResponseEntity<StudentDTO> createStudent(@RequestBody @Valid StudentDTO studentDTO) {
         StudentDTO c = studentService.save(studentDTO);
         return ResponseEntity.status(HttpStatus.OK).body(c);
     }
 
     @PutMapping("/{id}")
     ResponseEntity<StudentDTO> updateStudent(@PathVariable Long id,
-                                             @RequestBody StudentDTO studentDTO) {
+                                             @RequestBody @Valid StudentDTO studentDTO) {
         StudentDTO c = studentService.update(id, studentDTO);
         return ResponseEntity.status(HttpStatus.OK).body(c);
     }
     @DeleteMapping("/{id}")
-    ResponseEntity<Long> deleteStudent(@PathVariable Long id) {
-        Long deletedId = studentService.delete(id);
-        return ResponseEntity.status(HttpStatus.OK).body(deletedId);
+    ResponseEntity<Object> deleteStudent(@PathVariable Long id) {
+        studentService.delete(id);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping
-    ResponseEntity<List<StudentDTO>> getAllStudentsByStage(@RequestParam(name = "stageId") Long stageId,
+    ResponseEntity<List<StudentDTO>> getAllStudentsByStage(@RequestParam(name = "stageId", required = false) Optional<Long> stageId,
                                                            @RequestParam(name = "userId", required = false) Optional<Long> userId) {
         List<StudentDTO> students = studentService.findAll(stageId, userId);
         return ResponseEntity.status(HttpStatus.OK).body(students);
