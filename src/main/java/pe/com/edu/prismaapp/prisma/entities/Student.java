@@ -26,10 +26,6 @@ public class Student {
     private boolean deleted;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "id_user")
-    private User tutor;
-
-    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_area")
     private Area area;
 

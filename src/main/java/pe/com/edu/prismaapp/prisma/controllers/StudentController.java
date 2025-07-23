@@ -39,7 +39,7 @@ public class StudentController {
     }
 
     @GetMapping
-    ResponseEntity<List<StudentDTO>> getAllStudentsByStage(@RequestParam(name = "stageId") Long stageId,
+    ResponseEntity<List<StudentDTO>> getAllStudentsByStage(@RequestParam(name = "stageId", required = false) Optional<Long> stageId,
                                                            @RequestParam(name = "userId", required = false) Optional<Long> userId) {
         List<StudentDTO> students = studentService.findAll(stageId, userId);
         return ResponseEntity.status(HttpStatus.OK).body(students);

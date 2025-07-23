@@ -8,7 +8,7 @@ import java.util.Optional;
 public interface StudentService {
 
     StudentDTO save(StudentDTO studentDTO);
-    List<StudentDTO> findAll(Long stageId, Optional<Long> userId);
+    List<StudentDTO> findAll(Optional<Long> stageId, Optional<Long> userId);
 
     StudentDTO update(Long id, StudentDTO studentDTO);
 

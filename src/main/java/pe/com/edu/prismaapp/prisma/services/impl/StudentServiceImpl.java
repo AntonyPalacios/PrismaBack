@@ -3,10 +3,7 @@ package pe.com.edu.prismaapp.prisma.services.impl;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pe.com.edu.prismaapp.prisma.dto.StudentDTO;
-import pe.com.edu.prismaapp.prisma.entities.Stage;
-import pe.com.edu.prismaapp.prisma.entities.Student;
-import pe.com.edu.prismaapp.prisma.entities.StudentStage;
-import pe.com.edu.prismaapp.prisma.entities.StudentStageUser;
+import pe.com.edu.prismaapp.prisma.entities.*;
 import pe.com.edu.prismaapp.prisma.repositories.StudentRepository;
 import pe.com.edu.prismaapp.prisma.services.*;
 
@@ -50,7 +47,8 @@ public class StudentServiceImpl implements StudentService {
         StudentStage studentStage = studentStageService.saveStudent(student,stage,studentDTO.isActive());
         StudentStageUser studentStageUser = new StudentStageUser();
         studentStageUser.setStudentStage(studentStage);
-        studentStageUser.setUser(student.getTutor());
+        User tutor = userService.findTutorById(studentDTO.getTutorId()).orElse(null);
+        studentStageUser.setUser(tutor);
         studentStageUserService.save(studentStageUser);
 
 
@@ -66,7 +64,8 @@ public class StudentServiceImpl implements StudentService {
 
         StudentStage studentStage = studentStageService.updateStudent(student,studentDTO);
         StudentStageUser studentStageUser = studentStageUserService.findByStudentStageId(studentStage.getId());
-        studentStageUser.setUser(student.getTutor());
+        User tutor = userService.findTutorById(studentDTO.getTutorId()).orElse(null);
+        studentStageUser.setUser(tutor);
         studentStageUserService.save(studentStageUser);
 
         return studentDTO;
@@ -78,12 +77,6 @@ public class StudentServiceImpl implements StudentService {
         student.setPhone(studentDTO.getPhone());
         student.setDni(studentDTO.getDni());
 
-        //buscar id del tutor
-        if(studentDTO.getTutorId() != 0){
-            userService.findTutorById(studentDTO.getTutorId()).ifPresent(student::setTutor);
-        }else{
-            student.setTutor(null);
-        }
         if(studentDTO.getAreaId() != 0){
             areaService.getAreaById(studentDTO.getAreaId()).ifPresent(student::setArea);
         }else {
@@ -104,14 +97,18 @@ public class StudentServiceImpl implements StudentService {
     }
 
     @Override
-    public List<StudentDTO> findAll(Long stageId, Optional<Long> userId) {
+    public List<StudentDTO> findAll(Optional<Long> stageId, Optional<Long> userId) {
         List<Object[]> studentsList;
         List<StudentDTO> studentDTOList = new ArrayList<>();
         Long currentUser = null;
+        Long currentStage = null;
+        if(stageId.isPresent()){
+            currentStage = stageId.get();
+        }
         if(userId.isPresent()){
             currentUser = userId.get();
         }
-        studentsList = studentRepository.findStudentsByStage(stageId,currentUser);
+        studentsList = studentRepository.findStudentsByStage(currentStage,currentUser);
         for (Object[] student : studentsList) {
             StudentDTO studentDTO = new StudentDTO();
             studentDTO.setId((Long) student[0]);
