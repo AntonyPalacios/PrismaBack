@@ -3,6 +3,7 @@ package pe.com.edu.prismaapp.prisma.controllers;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import pe.com.edu.prismaapp.prisma.dto.StudentDTO;
 import pe.com.edu.prismaapp.prisma.services.StudentService;
@@ -21,27 +22,30 @@ public class StudentController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN','TUTOR')")
     ResponseEntity<StudentDTO> createStudent(@Valid @RequestBody StudentDTO studentDTO) {
         StudentDTO c = studentService.save(studentDTO);
         return ResponseEntity.status(HttpStatus.OK).body(c);
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN') or " +
+                  "(hasRole('TUTOR') and @studentServiceImpl.isStudentAssignedToTutor(#id,authentication.principal.id))")
     ResponseEntity<StudentDTO> updateStudent(@PathVariable Long id,
                                              @Valid @RequestBody StudentDTO studentDTO) {
         StudentDTO c = studentService.update(id, studentDTO);
         return ResponseEntity.status(HttpStatus.OK).body(c);
     }
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     ResponseEntity<Object> deleteStudent(@PathVariable Long id) {
         studentService.delete(id);
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping
-    ResponseEntity<List<StudentDTO>> getAllStudentsByStage(@RequestParam(name = "stageId", required = false) Optional<Long> stageId,
-                                                           @RequestParam(name = "userId", required = false) Optional<Long> userId) {
-        List<StudentDTO> students = studentService.findAll(stageId, userId);
+    ResponseEntity<List<StudentDTO>> getAllStudentsByStage(@RequestParam(name = "stageId", required = false) Optional<Long> stageId) {
+        List<StudentDTO> students = studentService.findAll(stageId);
         return ResponseEntity.status(HttpStatus.OK).body(students);
     }
 }

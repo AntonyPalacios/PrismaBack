@@ -3,6 +3,7 @@ package pe.com.edu.prismaapp.prisma.controllers;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import pe.com.edu.prismaapp.prisma.dto.StageDTO;
 import pe.com.edu.prismaapp.prisma.services.StageService;
@@ -41,6 +42,7 @@ public class StageController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     ResponseEntity<Object> deleteStage(@PathVariable Long id) {
         stageService.delete(id);
         return ResponseEntity.noContent().build();

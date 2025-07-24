@@ -43,4 +43,9 @@ public class StudentStageUserImpl implements StudentStageUserService {
     public void deleteByStageId(Long stageId) {
         studentStageUserRepository.deleteByStudentStage_Stage_Id(stageId);
     }
+
+    @Override
+    public boolean isStudentAssignedToTutor(Long studentStageId, Long tutorId) {
+        return studentStageUserRepository.existsByUser_IdAndStudentStage_Id(tutorId, studentStageId);
+    }
 }

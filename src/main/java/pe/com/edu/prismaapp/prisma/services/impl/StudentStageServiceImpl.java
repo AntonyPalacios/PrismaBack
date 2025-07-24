@@ -46,16 +46,20 @@ public class StudentStageServiceImpl implements StudentStageService {
 
     @Override
     @Transactional
-    public boolean deleteStudentStageByStageId(Long stageId) {
+    public void deleteStudentStageByStageId(Long stageId) {
         //borrar studentStageUser
         studentStageUserService.deleteByStageId(stageId);
         studentStageRepository.deleteByStage_Id(stageId);
-        return true;
     }
 
     @Override
     @Transactional
     public void deleteStudent(Long id) {
         studentStageRepository.deleteByStudent_Id(id);
+    }
+
+    @Override
+    public StudentStage getStudentFromCurrentStage(Long stageId, Long studentId) {
+        return studentStageRepository.findByStudent_IdAndStage_Id(studentId, stageId);
     }
 }

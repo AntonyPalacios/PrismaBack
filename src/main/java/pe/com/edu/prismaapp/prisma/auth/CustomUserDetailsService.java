@@ -37,9 +37,16 @@ public class CustomUserDetailsService implements UserDetailsService {
                 .map(role -> new SimpleGrantedAuthority(role.getName()))
                 .collect(Collectors.toList());
 
-        return new org.springframework.security.core.userdetails.User(
+//        return new org.springframework.security.core.userdetails.User(
+//                user.getEmail(),
+//                "", // La contraseña es vacía para usuarios OAuth2/JWT
+//                authorities);
+
+        return new CustomUserDetails(
+                user.getId(),
                 user.getEmail(),
-                "", // La contraseña es vacía para usuarios OAuth2/JWT
+                "",
+                user.isActive(),
                 authorities);
     }
 }

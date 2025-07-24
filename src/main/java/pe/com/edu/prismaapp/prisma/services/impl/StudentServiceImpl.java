@@ -1,8 +1,14 @@
 package pe.com.edu.prismaapp.prisma.services.impl;
 
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import pe.com.edu.prismaapp.prisma.auth.CustomUserDetails;
 import pe.com.edu.prismaapp.prisma.dto.StudentDTO;
+import pe.com.edu.prismaapp.prisma.dto.UserDTO;
 import pe.com.edu.prismaapp.prisma.entities.*;
 import pe.com.edu.prismaapp.prisma.errorHandler.ResourceNotFoundException;
 import pe.com.edu.prismaapp.prisma.repositories.StudentRepository;
@@ -99,18 +105,22 @@ public class StudentServiceImpl implements StudentService {
     }
 
     @Override
-    public List<StudentDTO> findAll(Optional<Long> stageId, Optional<Long> userId) {
+    public List<StudentDTO> findAll(Optional<Long> stageId) {
         List<Object[]> studentsList;
         List<StudentDTO> studentDTOList = new ArrayList<>();
-        Long currentUser = null;
+
+        //se saca el rol del token para validar la lista de datos a enviar
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        CustomUserDetails currentUser = (CustomUserDetails) authentication.getPrincipal();
+        Long currentUserId = null;
         Long currentStage = null;
         if(stageId.isPresent()){
             currentStage = stageId.get();
         }
-        if(userId.isPresent()){
-            currentUser = userId.get();
+        if(!currentUser.getAuthorities().contains(new SimpleGrantedAuthority("ROLE_ADMIN"))){
+            currentUserId = currentUser.getId();
         }
-        studentsList = studentRepository.findStudentsByStage(currentStage,currentUser);
+        studentsList = studentRepository.findStudentsByStage(currentStage,currentUserId);
         for (Object[] student : studentsList) {
             StudentDTO studentDTO = new StudentDTO();
             studentDTO.setId((Long) student[0]);
@@ -127,5 +137,16 @@ public class StudentServiceImpl implements StudentService {
 
 
         return studentDTOList;
+    }
+
+    @Override
+    public boolean isStudentAssignedToTutor(Long studentId, Long tutorId) {
+        System.out.println("isStudentAssignedToTutor");
+        System.out.println("studentId: " + studentId);
+        System.out.println("tutorId: " + tutorId);
+        Stage currentStage = stageService.getCurrentStage().orElse(null);
+        if(currentStage == null) return false;
+        StudentStage studentStage = studentStageService.getStudentFromCurrentStage(currentStage.getId(), studentId);
+        return studentStageUserService.isStudentAssignedToTutor(studentStage.getId(),tutorId);
     }
 }

@@ -2,15 +2,14 @@ package pe.com.edu.prismaapp.prisma.errorHandler;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.WebRequest;
-import org.springframework.security.access.AccessDeniedException; // Para errores de seguridad
-import org.springframework.web.servlet.NoHandlerFoundException; // Para 404
-import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException; // Para tipos de parámetros incorrectos
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.NoHandlerFoundException;
 
-import java.time.LocalDateTime;
 import java.util.stream.Collectors;
 
 @ControllerAdvice
