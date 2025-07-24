@@ -141,9 +141,6 @@ public class StudentServiceImpl implements StudentService {
 
     @Override
     public boolean isStudentAssignedToTutor(Long studentId, Long tutorId) {
-        System.out.println("isStudentAssignedToTutor");
-        System.out.println("studentId: " + studentId);
-        System.out.println("tutorId: " + tutorId);
         Stage currentStage = stageService.getCurrentStage().orElse(null);
         if(currentStage == null) return false;
         StudentStage studentStage = studentStageService.getStudentFromCurrentStage(currentStage.getId(), studentId);
