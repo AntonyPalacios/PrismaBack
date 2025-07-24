@@ -12,7 +12,9 @@ public interface StudentStageService {
 
     StudentStage updateStudent(Student student, StudentDTO studentDTO);
 
-    boolean deleteStudentStageByStageId(Long stageId);
+    void deleteStudentStageByStageId(Long stageId);
 
     void deleteStudent(Long id);
+
+    StudentStage getStudentFromCurrentStage(Long stageId, Long studentId);
 }

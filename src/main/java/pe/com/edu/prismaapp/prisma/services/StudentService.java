@@ -8,9 +8,11 @@ import java.util.Optional;
 public interface StudentService {
 
     StudentDTO save(StudentDTO studentDTO);
-    List<StudentDTO> findAll(Optional<Long> stageId, Optional<Long> userId);
+    List<StudentDTO> findAll(Optional<Long> stageId);
 
     StudentDTO update(Long id, StudentDTO studentDTO);
 
     void delete(Long id);
+
+    boolean isStudentAssignedToTutor(Long studentId, Long tutorId);
 }

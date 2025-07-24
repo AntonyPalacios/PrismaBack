@@ -15,13 +15,14 @@ public class StudentDTO {
     private Long id;
 
     @NotBlank
-    @Size(min = 2)
+    @Size(min = 2, max = 50)
     private String name;
 
     @Email
     @NotBlank
     private String email;
 
+    @Size(max = 9)
     private String phone;
 
     @NotBlank

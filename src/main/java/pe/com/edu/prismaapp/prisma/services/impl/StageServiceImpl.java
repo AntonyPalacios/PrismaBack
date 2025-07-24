@@ -6,6 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 import pe.com.edu.prismaapp.prisma.dto.StageDTO;
 import pe.com.edu.prismaapp.prisma.entities.Cycle;
 import pe.com.edu.prismaapp.prisma.entities.Stage;
+import pe.com.edu.prismaapp.prisma.errorHandler.ResourceNotFoundException;
 import pe.com.edu.prismaapp.prisma.repositories.CycleRepository;
 import pe.com.edu.prismaapp.prisma.repositories.StageRepository;
 import pe.com.edu.prismaapp.prisma.services.StageService;
@@ -48,7 +49,8 @@ public class StageServiceImpl implements StageService {
     @Override
     @Transactional
     public StageDTO update(Long id, StageDTO stageDTO) {
-        Stage stage = stageRepository.findById(id).orElseThrow();
+        Stage stage = stageRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Etapa no encontrada con ID: " + id));
         mapValues(stageDTO, stage);
         return stageDTO;
     }
@@ -60,7 +62,7 @@ public class StageServiceImpl implements StageService {
         boolean isCurrent = UtilHelper.validateCurrent(stageDTO.getStartDate(),stageDTO.getEndDate());
         stage.setCurrent(isCurrent);
         Cycle cycle = cycleRepository.findById(stageDTO.getIdCycle())
-                .orElseThrow(() -> new EntityNotFoundException("Ciclo no encontrado con ID: " + stageDTO.getIdCycle()));
+                .orElseThrow(() -> new ResourceNotFoundException("Ciclo no encontrado con ID: " + stageDTO.getIdCycle()));
         stage.setCycle(cycle);
         stage = stageRepository.save(stage);
         if(isCurrent){
@@ -71,13 +73,12 @@ public class StageServiceImpl implements StageService {
     @Override
     @Transactional
     public void delete(Long id) {
-        Optional<Stage> optionalStage = stageRepository.findById(id);
-        if (optionalStage.isPresent()) {
-            Stage stage = optionalStage.get();
-            //borrar studentStage
-            studentStageService.deleteStudentStageByStageId(stage.getId());
-            stageRepository.delete(stage);
-        }
+        Stage stage = stageRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Etapa no encontrada con ID: " + id));
+        //borrar studentStage
+        studentStageService.deleteStudentStageByStageId(stage.getId());
+        stageRepository.delete(stage);
+
     }
 
     @Override

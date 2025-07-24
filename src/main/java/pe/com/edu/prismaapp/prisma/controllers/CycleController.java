@@ -3,6 +3,7 @@ package pe.com.edu.prismaapp.prisma.controllers;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import pe.com.edu.prismaapp.prisma.dto.CycleDTO;
 import pe.com.edu.prismaapp.prisma.services.CycleService;
@@ -40,6 +41,7 @@ public class CycleController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     ResponseEntity<Object> deleteCycle(@PathVariable Long id) {
         cycleService.delete(id);
         return ResponseEntity.noContent().build();

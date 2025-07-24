@@ -9,4 +9,6 @@ public interface StudentStageUserRepository extends JpaRepository<StudentStageUs
     void deleteByStudentStage_Student_Id(Long id);
     void deleteByStudentStage_Stage_Id(Long id);
     void deleteByUser_Id(Long id);
+
+    boolean existsByUser_IdAndStudentStage_Id(Long tutorId, Long studentStageId);
 }

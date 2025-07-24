@@ -12,4 +12,6 @@ public interface StudentStageUserService {
     void deleteStudent(Long id);
 
     void deleteByStageId(Long stageId);
+
+    boolean isStudentAssignedToTutor(Long studentStageId, Long tutorId);
 }

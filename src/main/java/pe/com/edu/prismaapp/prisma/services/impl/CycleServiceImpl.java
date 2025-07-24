@@ -5,6 +5,7 @@ import org.springframework.transaction.annotation.Transactional;
 import pe.com.edu.prismaapp.prisma.dto.CycleDTO;
 import pe.com.edu.prismaapp.prisma.entities.Cycle;
 import pe.com.edu.prismaapp.prisma.entities.Stage;
+import pe.com.edu.prismaapp.prisma.errorHandler.ResourceNotFoundException;
 import pe.com.edu.prismaapp.prisma.repositories.CycleRepository;
 import pe.com.edu.prismaapp.prisma.services.CycleService;
 import pe.com.edu.prismaapp.prisma.services.StageService;
@@ -48,7 +49,8 @@ public class CycleServiceImpl implements CycleService {
     @Override
     @Transactional
     public CycleDTO update(Long id, CycleDTO cycleDTO) {
-        Cycle cycle = cycleRepository.findById(id).orElseThrow();
+        Cycle cycle = cycleRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Ciclo no encontrado con ID: " + id));
         mapValues(cycleDTO, cycle);
         return cycleDTO;
     }
@@ -69,7 +71,8 @@ public class CycleServiceImpl implements CycleService {
     @Override
     @Transactional
     public void delete(Long id) {
-        Cycle cycle = cycleRepository.findCycleByIdWithStages(id).orElseThrow();
+        Cycle cycle = cycleRepository.findCycleByIdWithStages(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Ciclo no encontrado con ID: " + id));
 
         List<Stage> stages = cycle.getStages();
         List<Stage> stagesToDelete = new java.util.ArrayList<>(stages);

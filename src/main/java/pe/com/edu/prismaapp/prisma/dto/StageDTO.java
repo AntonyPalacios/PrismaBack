@@ -17,7 +17,7 @@ public class StageDTO {
 
     private Long id;
     @NotBlank
-    @Size(min = 5, max = 20)
+    @Size(min = 4, max = 15)
     private String name;
     @JsonFormat(pattern="dd/MM/yyyy")
     private Date startDate;
