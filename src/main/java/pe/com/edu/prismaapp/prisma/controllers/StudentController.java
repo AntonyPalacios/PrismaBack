@@ -2,9 +2,11 @@ package pe.com.edu.prismaapp.prisma.controllers;
 
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import pe.com.edu.prismaapp.prisma.dto.StudentDTO;
 import pe.com.edu.prismaapp.prisma.services.StudentService;
 
@@ -47,5 +49,12 @@ public class StudentController {
     ResponseEntity<List<StudentDTO>> getAllStudentsByStage(@RequestParam(name = "stageId", required = false) Optional<Long> stageId) {
         List<StudentDTO> students = studentService.findAll(stageId);
         return ResponseEntity.status(HttpStatus.OK).body(students);
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping(path="/upload", consumes = { MediaType.MULTIPART_FORM_DATA_VALUE })
+    ResponseEntity<Object> uploadStudents(@RequestParam("file") MultipartFile file) {
+        studentService.uploadStudents(file);
+        return ResponseEntity.status(HttpStatus.OK).build();
     }
 }

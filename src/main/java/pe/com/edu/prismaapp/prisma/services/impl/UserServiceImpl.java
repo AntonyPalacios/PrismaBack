@@ -116,4 +116,9 @@ public class UserServiceImpl implements UserService {
         return userDTO;
 
     }
+
+    @Override
+    public Optional<User> findTutorByName(String name) {
+        return userRepository.findByNameLikeIgnoreCase('%' + name + '%');
+    }
 }

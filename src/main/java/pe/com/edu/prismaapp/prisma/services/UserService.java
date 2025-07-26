@@ -16,4 +16,6 @@ public interface UserService {
     Optional<User> findTutorById(Long id);
 
     UserDTO getCurrentUser();
+
+    Optional<User> findTutorByName(String name);
 }
