@@ -27,4 +27,9 @@ public class AreaServiceImpl implements AreaService {
     public Optional<Area> getAreaById(Long id) {
         return areaRepository.findById(id);
     }
+
+    @Override
+    public Optional<Area> findAreaByName(String name) {
+        return areaRepository.findByNameLikeIgnoreCase('%' + name + '%');
+    }
 }

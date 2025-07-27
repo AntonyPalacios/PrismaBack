@@ -8,4 +8,6 @@ import java.util.Optional;
 public interface AreaService {
     List<Area> getAreas();
     Optional<Area> getAreaById(Long id);
+
+    Optional<Area> findAreaByName(String name);
 }

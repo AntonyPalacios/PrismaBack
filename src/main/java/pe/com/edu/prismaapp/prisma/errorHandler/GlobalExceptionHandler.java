@@ -93,6 +93,7 @@ public class GlobalExceptionHandler {
             Exception ex, WebRequest request) {
         // En un entorno de producción, evita exponer detalles internos de la excepción
         // Simplemente un mensaje genérico y loguea el error completo
+        ex.printStackTrace();
         ErrorResponse errorResponse = new ErrorResponse(
                 HttpStatus.INTERNAL_SERVER_ERROR.value(),
                 HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase(),

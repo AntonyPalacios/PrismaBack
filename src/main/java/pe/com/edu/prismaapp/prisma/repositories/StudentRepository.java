@@ -2,10 +2,10 @@ package pe.com.edu.prismaapp.prisma.repositories;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
-import pe.com.edu.prismaapp.prisma.dto.StudentDTO;
 import pe.com.edu.prismaapp.prisma.entities.Student;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface StudentRepository extends JpaRepository<Student, Long> {
 
@@ -18,4 +18,7 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
             "AND (:idUser IS NULL OR :idUser = 0 OR A.user.id = :idUser) " +
             "ORDER BY C.name")
     List<Object[]> findStudentsByStage(Long idStage, Long idUser);
+
+    Optional<Student> findByNameIgnoreCase(String name);
+    Optional<Student> findByDniIgnoreCase(String dni);
 }

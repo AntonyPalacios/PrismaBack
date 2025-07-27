@@ -1,5 +1,6 @@
 package pe.com.edu.prismaapp.prisma.services;
 
+import org.springframework.web.multipart.MultipartFile;
 import pe.com.edu.prismaapp.prisma.dto.StudentDTO;
 
 import java.util.List;
@@ -15,4 +16,6 @@ public interface StudentService {
     void delete(Long id);
 
     boolean isStudentAssignedToTutor(Long studentId, Long tutorId);
+
+    void uploadStudents(MultipartFile file);
 }

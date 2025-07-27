@@ -19,13 +19,11 @@ public class StudentDTO {
     private String name;
 
     @Email
-    @NotBlank
     private String email;
 
     @Size(max = 9)
     private String phone;
 
-    @NotBlank
     @Size(max = 8)
     private String dni;
     private Long tutorId;
