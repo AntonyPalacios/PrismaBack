@@ -1,6 +1,11 @@
 package pe.com.edu.prismaapp.prisma.controllers;
 
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.ResourceLoader;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -10,6 +15,7 @@ import org.springframework.web.multipart.MultipartFile;
 import pe.com.edu.prismaapp.prisma.dto.StudentDTO;
 import pe.com.edu.prismaapp.prisma.services.StudentService;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 
@@ -18,6 +24,9 @@ import java.util.Optional;
 public class StudentController {
 
     private final StudentService studentService;
+
+    @Autowired
+    private ResourceLoader resourceLoader;
 
     public StudentController(StudentService studentService) {
         this.studentService = studentService;
@@ -56,5 +65,22 @@ public class StudentController {
     ResponseEntity<Object> uploadStudents(@RequestParam("file") MultipartFile file) {
         studentService.uploadStudents(file);
         return ResponseEntity.status(HttpStatus.OK).build();
+    }
+
+    @GetMapping("/template")
+    ResponseEntity<Resource> getStudentTemplate() throws IOException {
+        Resource resource = new ClassPathResource("templates/Plantilla Importar Alumnos.xlsx");
+        if (!resource.exists() || !resource.isReadable()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + resource.getFilename() + "\"");
+        headers.add(HttpHeaders.CONTENT_TYPE,MediaType.APPLICATION_OCTET_STREAM_VALUE);
+        return ResponseEntity.ok()
+                .contentLength(resource.contentLength())
+                .contentType(MediaType.parseMediaType(MediaType.APPLICATION_OCTET_STREAM_VALUE))
+                .headers(headers)
+                .body(resource);
     }
 }
