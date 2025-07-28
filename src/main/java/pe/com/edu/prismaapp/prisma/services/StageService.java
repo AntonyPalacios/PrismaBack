@@ -19,4 +19,6 @@ public interface StageService {
     Optional<Stage> getCurrentStage();
 
     StageDTO getCurrentStageDTO();
+
+    Optional<Stage> getStageById(Long id);
 }

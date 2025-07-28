@@ -1,0 +1,37 @@
+package pe.com.edu.prismaapp.prisma.controllers;
+
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import pe.com.edu.prismaapp.prisma.dto.ExamDTO;
+import pe.com.edu.prismaapp.prisma.services.ExamService;
+
+@RestController
+@RequestMapping("/exams")
+public class ExamController {
+
+    private final ExamService examService;
+
+    public ExamController(ExamService examService) {
+        this.examService = examService;
+    }
+
+    @GetMapping
+    ResponseEntity<Object> getAllExams(@RequestParam(name="cycleId", required = false) Long cycleId,
+                                       @RequestParam(name = "stageId", required = false) Long stageId) {
+        return ResponseEntity.ok(examService.getExams(cycleId, stageId));
+    }
+
+    @PostMapping
+    ResponseEntity<Object> createExam(@RequestBody @Valid ExamDTO exam) {
+        ExamDTO e = examService.save(exam);
+        return ResponseEntity.status(HttpStatus.OK).body(e);
+    }
+
+    @PutMapping("/{id}")
+    ResponseEntity<Object> update(@PathVariable Long id, @RequestBody @Valid ExamDTO exam) {
+        ExamDTO e = examService.update(id, exam);
+        return ResponseEntity.status(HttpStatus.OK).body(e);
+    }
+}

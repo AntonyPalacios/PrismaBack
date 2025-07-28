@@ -98,4 +98,9 @@ public class StageServiceImpl implements StageService {
         }
 
     }
+
+    @Override
+    public Optional<Stage> getStageById(Long id) {
+        return stageRepository.findById(id);
+    }
 }

@@ -35,7 +35,7 @@ public class CycleController {
     }
 
     @PutMapping("/{id}")
-    ResponseEntity<CycleDTO> updateCycle(@PathVariable Long id,@RequestBody @Valid CycleDTO cycle) {
+    ResponseEntity<CycleDTO> updateCycle(@PathVariable Long id, @RequestBody @Valid CycleDTO cycle) {
         CycleDTO c = cycleService.update(id,cycle);
         return ResponseEntity.status(HttpStatus.OK).body(c);
     }

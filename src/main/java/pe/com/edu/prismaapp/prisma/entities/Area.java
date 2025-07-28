@@ -14,4 +14,5 @@ public class Area {
 
     private String name;
     private String abbreviation;
+    private boolean main;
 }
