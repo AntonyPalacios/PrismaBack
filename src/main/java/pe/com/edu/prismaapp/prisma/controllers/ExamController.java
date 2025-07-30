@@ -2,10 +2,15 @@ package pe.com.edu.prismaapp.prisma.controllers;
 
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import pe.com.edu.prismaapp.prisma.dto.ExamDTO;
 import pe.com.edu.prismaapp.prisma.services.ExamService;
+import pe.com.edu.prismaapp.prisma.util.AreaEnum;
+
+import java.io.IOException;
 
 @RestController
 @RequestMapping("/exams")
@@ -33,5 +38,11 @@ public class ExamController {
     ResponseEntity<Object> update(@PathVariable Long id, @RequestBody @Valid ExamDTO exam) {
         ExamDTO e = examService.update(id, exam);
         return ResponseEntity.status(HttpStatus.OK).body(e);
+    }
+
+    @PostMapping(path="/import/{id}/{area}", consumes = { MediaType.MULTIPART_FORM_DATA_VALUE })
+    ResponseEntity<Object> importExamResults(@PathVariable Long id, @PathVariable AreaEnum area, @RequestParam("file") MultipartFile file) throws IOException {
+        examService.importResults(id, area, file);
+        return ResponseEntity.status(HttpStatus.OK).build();
     }
 }

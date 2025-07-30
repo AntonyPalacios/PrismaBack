@@ -145,8 +145,20 @@ public class StudentServiceImpl implements StudentService {
     public boolean isStudentAssignedToTutor(Long studentId, Long tutorId) {
         Stage currentStage = stageService.getCurrentStage().orElse(null);
         if(currentStage == null) return false;
-        StudentStage studentStage = studentStageService.getStudentFromCurrentStage(currentStage.getId(), studentId);
+        StudentStage studentStage = studentStageService.getStudentStage(currentStage.getId(), studentId);
         return studentStageUserService.isStudentAssignedToTutor(studentStage.getId(),tutorId);
+    }
+
+    @Override
+    public Student findByDniOrName(String dni, String name) {
+        Student student = null;
+        if(dni != null && dni.length() >= 8){
+            student = studentRepository.findByDniIgnoreCase(dni).orElse(null);
+        }
+        if(student == null){
+            student = studentRepository.findByNameIgnoreCase(name).orElse(null);
+        }
+        return student;
     }
 
     @Override
@@ -170,13 +182,7 @@ public class StudentServiceImpl implements StudentService {
                 String area = dataFormatter.formatCellValue(row.getCell(2)).trim();
                 String tutor = dataFormatter.formatCellValue(row.getCell(3)).trim();
 
-                Student student = null;
-                if(!dni.isEmpty()){
-                    student = studentRepository.findByDniIgnoreCase(dni).orElse(null);
-                }
-                if(student == null){
-                    student = studentRepository.findByNameIgnoreCase(name).orElse(null);
-                }
+                Student student = findByDniOrName(dni, name);
 
                 StudentDTO studentDTO = new StudentDTO();
                 studentDTO.setDni(dni);

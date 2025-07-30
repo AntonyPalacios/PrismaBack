@@ -59,7 +59,7 @@ public class StudentStageServiceImpl implements StudentStageService {
     }
 
     @Override
-    public StudentStage getStudentFromCurrentStage(Long stageId, Long studentId) {
+    public StudentStage getStudentStage(Long stageId, Long studentId) {
         return studentStageRepository.findByStudent_IdAndStage_Id(studentId, stageId);
     }
 }

@@ -2,6 +2,7 @@ package pe.com.edu.prismaapp.prisma.services;
 
 import org.springframework.web.multipart.MultipartFile;
 import pe.com.edu.prismaapp.prisma.dto.StudentDTO;
+import pe.com.edu.prismaapp.prisma.entities.Student;
 
 import java.util.List;
 import java.util.Optional;
@@ -18,4 +19,6 @@ public interface StudentService {
     boolean isStudentAssignedToTutor(Long studentId, Long tutorId);
 
     void uploadStudents(MultipartFile file);
+
+    Student findByDniOrName(String dni,String name);
 }

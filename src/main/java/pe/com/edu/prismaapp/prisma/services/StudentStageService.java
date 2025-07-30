@@ -16,5 +16,5 @@ public interface StudentStageService {
 
     void deleteStudent(Long id);
 
-    StudentStage getStudentFromCurrentStage(Long stageId, Long studentId);
+    StudentStage getStudentStage(Long stageId, Long studentId);
 }
