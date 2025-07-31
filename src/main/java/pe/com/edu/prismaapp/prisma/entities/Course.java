@@ -1,9 +1,11 @@
 package pe.com.edu.prismaapp.prisma.entities;
 
 import jakarta.persistence.*;
+import lombok.Data;
 
 @Entity
 @Table(name = "TCOURSE")
+@Data
 public class Course {
 
     @Id

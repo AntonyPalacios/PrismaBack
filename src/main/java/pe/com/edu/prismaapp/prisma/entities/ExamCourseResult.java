@@ -25,9 +25,6 @@ public class ExamCourseResult {
     @JoinColumn(name = "id_course", nullable = false)
     private Course course;
 
-    @Column(name = "course_score")
-    private Double courseScore; // O Integer
-
     @Column(name = "course_correct")
     private Integer courseCorrect;
 
@@ -37,7 +34,8 @@ public class ExamCourseResult {
     @Column(name = "course_blank")
     private Integer courseBlank;
 
-    public ExamCourseResult(ExamResult examResult, Course course, Integer courseCorrect, Integer courseIncorrect, Integer courseBlank) {
+    public ExamCourseResult(ExamResult examResult, Course course,
+                            Integer courseCorrect, Integer courseIncorrect, Integer courseBlank) {
         this.examResult = examResult;
         this.course = course;
         this.courseCorrect = courseCorrect;

@@ -26,17 +26,21 @@ public class ExamResult {
 
     private int totalCorrect;
     private int totalIncorrect ;
-    private int totalBlank;
     private Double totalScore;
     private int merit;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "id_area")
+    private Area area;
 
     // Relación One-to-Many con ExamCourseResult
     @OneToMany(mappedBy = "examResult", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ExamCourseResult> courseResults;
 
-    public ExamResult(Exam exam, StudentStage studentStage, int totalCorrect, int totalIncorrect, Double totalScore, int merit) {
+    public ExamResult(Exam exam, StudentStage studentStage, Area area, int totalCorrect, int totalIncorrect, Double totalScore, int merit) {
         this.exam = exam;
         this.studentStage = studentStage;
+        this.area = area;
         this.totalCorrect = totalCorrect;
         this.totalIncorrect = totalIncorrect;
         this.totalScore = totalScore;
