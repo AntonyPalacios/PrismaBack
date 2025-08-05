@@ -4,8 +4,7 @@ import org.apache.poi.ss.usermodel.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
-import pe.com.edu.prismaapp.prisma.dto.ExamDTO;
-import pe.com.edu.prismaapp.prisma.dto.StudentDTO;
+import pe.com.edu.prismaapp.prisma.dto.*;
 import pe.com.edu.prismaapp.prisma.entities.*;
 import pe.com.edu.prismaapp.prisma.errorHandler.ResourceNotFoundException;
 import pe.com.edu.prismaapp.prisma.repositories.CourseRepository;
@@ -200,7 +199,7 @@ public class ExamServiceImpl implements ExamService {
         int totalCorrect = Integer.parseInt(dataFormatter.formatCellValue(row.getCell(i), evaluator).trim());
         int totalIncorrect = Integer.parseInt(dataFormatter.formatCellValue(row.getCell(j), evaluator).trim());
         double totalScore = Double.parseDouble(dataFormatter.formatCellValue(row.getCell(k), evaluator).trim());
-        if (totalScore == Double.parseDouble("80.00") || totalCorrect<=1 ) { //si no dio examen, no se ingresa
+        if (totalScore == Double.parseDouble("80.00") || totalCorrect <= 1) { //si no dio examen, no se ingresa
             return null;
         }
         Area area = areaService.findAreaByName(areaEnum.name()).orElseThrow(() -> new ResourceNotFoundException("Area: " + areaEnum.name()));
@@ -255,7 +254,7 @@ public class ExamServiceImpl implements ExamService {
                                       ExamResult examResult, Row row,
                                       DataFormatter dataFormatter, FormulaEvaluator evaluator) {
 
-        if(examResult == null) {
+        if (examResult == null) {
             return;
         }
         Course course = courseRepository.findByAbbreviationAndParentCourseIsNotNull(courseAbbreviation);
@@ -277,12 +276,99 @@ public class ExamServiceImpl implements ExamService {
         examCourseResultRepository.save(examCourseResult);
     }
 
-    public Object getExamResultsFromStudent(Long idStudent, Long idCycle) {
-        //buscar todas las etapas del ciclo en orden
+    @Override
+    public List<ExamScoreDTO> getExamResultsByStudent(Long studentId, Long cycleId) {
+        List<ExamResultDTO> examResults = examResultRepository.listExamResultsByStudent(studentId, cycleId);
+        List<ExamScoreDTO> examScoreDTOs = new ArrayList<>();
+        for (ExamResultDTO examResultDTO : examResults) {
+            ExamScoreDTO examScoreDTO = new ExamScoreDTO();
+            Long examId = examResultDTO.getExamId();
+            Long areaId = examResultDTO.getAreaId();
+            List<Object[]> data = examResultRepository.getMinMaxAndAvgByExamByArea(examId, areaId);
 
-        //por cada etapa buscar todos sus examenes, en orden
+            examScoreDTO.setName(examResultDTO.getName());
+            examScoreDTO.setMerit(examResultDTO.getMerit());
+            examScoreDTO.setScore(examResultDTO.getTotalScore());
+            examScoreDTO.setMin((Double) data.get(0)[0]);
+            examScoreDTO.setMax((Double) data.get(0)[1]);
+            examScoreDTO.setAvg((Double) data.get(0)[2]);
 
-        //por cada exam, sacar puntaje, nombre, merito
+            examScoreDTOs.add(examScoreDTO);
+        }
+        return examScoreDTOs;
+    }
+
+    @Override
+    public List<ExamScoreDTO> getExamEffectiveByStudent(Long idStudent, Long idCycle) {
+        List<ExamScoreDTO> examScoreDTOs = new ArrayList<>();
+        //sacar buenas y malas de lectura y matemática
+        List<ExamScoreDTO> lectura = examResultRepository.listExamEffectiveByStudent(idStudent, idCycle, 1L);
+        List<ExamScoreDTO> mate = examResultRepository.listExamEffectiveByStudent(idStudent, idCycle, 2L);
+
+        if (lectura.size() == mate.size()) {
+            for (int i = 0; i < lectura.size(); i++) {
+                ExamScoreDTO examScoreDTO = new ExamScoreDTO();
+                examScoreDTO.setName(lectura.get(i).getName());
+                examScoreDTO.setTotalLectCorrect(lectura.get(i).getTotalCorrect());
+                examScoreDTO.setTotalLectIncorrect(lectura.get(i).getTotalIncorrect());
+                examScoreDTO.setTotalMateCorrect(mate.get(i).getTotalCorrect());
+                examScoreDTO.setTotalMateIncorrect(mate.get(i).getTotalIncorrect());
+                examScoreDTOs.add(examScoreDTO);
+            }
+            return examScoreDTOs;
+        }
+        return examScoreDTOs;
+
+    }
+
+    @Override
+    public List<ExamCourseResultDTO> getExamEffectiveByCourseByStudent(Long idStudent, Long idCycle) {
+        List<ExamCourseResultDTO> examCourseResultDTOS = new ArrayList<>();
+        Course lect = courseRepository.findByAbbreviationAndParentCourseIsNotNull("LECT");
+        Course nyo = courseRepository.findByAbbreviationAndParentCourseIsNotNull("NYO");
+        Course x = courseRepository.findByAbbreviationAndParentCourseIsNotNull("X");
+        Course geo = courseRepository.findByAbbreviationAndParentCourseIsNotNull("GEO");
+        Course trigo = courseRepository.findByAbbreviationAndParentCourseIsNotNull("TRIGO");
+        Course est = courseRepository.findByAbbreviationAndParentCourseIsNotNull("EST");
+
+        //sacar buenas y malas de lectura y matemática
+        List<ExamScoreDTO> lectura = examResultRepository.listExamEffectiveByCourseByStudent(idStudent, idCycle, lect.getId());
+        List<ExamScoreDTO> nyoExam = examResultRepository.listExamEffectiveByCourseByStudent(idStudent, idCycle, nyo.getId());
+        List<ExamScoreDTO> xExam = examResultRepository.listExamEffectiveByCourseByStudent(idStudent, idCycle, x.getId());
+        List<ExamScoreDTO> geoExam = examResultRepository.listExamEffectiveByCourseByStudent(idStudent, idCycle, geo.getId());
+        List<ExamScoreDTO> trigoExam = examResultRepository.listExamEffectiveByCourseByStudent(idStudent, idCycle, trigo.getId());
+        List<ExamScoreDTO> estExam = examResultRepository.listExamEffectiveByCourseByStudent(idStudent, idCycle, est.getId());
+
+
+        for (int i = 0; i < lectura.size(); i++) {
+            ExamCourseResultDTO examScoreDTO = new ExamCourseResultDTO();
+            examScoreDTO.setName(lectura.get(i).getName());
+
+            examScoreDTO.setLectCorrect(lectura.get(i).getTotalCorrect());
+            examScoreDTO.setLectIncorrect(lectura.get(i).getTotalIncorrect());
+
+            examScoreDTO.setNyoCorrect(nyoExam.get(i).getTotalCorrect());
+            examScoreDTO.setNyoIncorrect(nyoExam.get(i).getTotalIncorrect());
+
+            examScoreDTO.setXCorrect(xExam.get(i).getTotalCorrect());
+            examScoreDTO.setXIncorrect(xExam.get(i).getTotalIncorrect());
+
+            examScoreDTO.setGeoCorrect(geoExam.get(i).getTotalCorrect());
+            examScoreDTO.setGeoIncorrect(geoExam.get(i).getTotalIncorrect());
+
+            if(!trigoExam.isEmpty()){
+                examScoreDTO.setTrigoCorrect(trigoExam.get(i).getTotalCorrect());
+                examScoreDTO.setTrigoIncorrect(trigoExam.get(i).getTotalIncorrect());
+            }
+
+            if(!estExam.isEmpty()){
+                examScoreDTO.setEstCorrect(estExam.get(i).getTotalCorrect());
+                examScoreDTO.setEstIncorrect(estExam.get(i).getTotalIncorrect());
+            }
+
+            examCourseResultDTOS.add(examScoreDTO);
+        }
+        return examCourseResultDTOS;
 
 
     }

@@ -45,4 +45,19 @@ public class ExamController {
         examService.importResults(id, area, file);
         return ResponseEntity.status(HttpStatus.OK).build();
     }
+
+    @GetMapping("/results/{idStudent}/{idCycle}")
+    ResponseEntity<Object> getExamResult(@PathVariable Long idStudent, @PathVariable Long idCycle) throws IOException {
+        return ResponseEntity.status(HttpStatus.OK).body(examService.getExamResultsByStudent(idStudent, idCycle));
+    }
+
+    @GetMapping("/effective/{idStudent}/{idCycle}")
+    ResponseEntity<Object> getExamEffective(@PathVariable Long idStudent, @PathVariable Long idCycle) throws IOException {
+        return ResponseEntity.status(HttpStatus.OK).body(examService.getExamEffectiveByStudent(idStudent, idCycle));
+    }
+
+    @GetMapping("/course/{idStudent}/{idCycle}")
+    ResponseEntity<Object> getExamEffectiveCourse(@PathVariable Long idStudent, @PathVariable Long idCycle) throws IOException {
+        return ResponseEntity.status(HttpStatus.OK).body(examService.getExamEffectiveByCourseByStudent(idStudent, idCycle));
+    }
 }
