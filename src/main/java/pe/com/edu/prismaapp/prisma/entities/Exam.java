@@ -1,11 +1,13 @@
 package pe.com.edu.prismaapp.prisma.entities;
 
 import jakarta.persistence.*;
+import lombok.Data;
 
 import java.util.Date;
 
 @Entity
 @Table(name = "TEXAM")
+@Data
 public class Exam {
 
     @Id
@@ -16,7 +18,7 @@ public class Exam {
     private String name;
     private Date date;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_stage")
     private Stage stage;
 }
