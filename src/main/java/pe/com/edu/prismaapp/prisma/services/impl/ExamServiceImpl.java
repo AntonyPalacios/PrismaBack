@@ -321,7 +321,7 @@ public class ExamServiceImpl implements ExamService {
 
     }
 
-    @Override
+    /*@Override
     public List<ExamCourseResultDTO> getExamEffectiveByCourseByStudent(Long idStudent, Long idCycle) {
         List<ExamCourseResultDTO> examCourseResultDTOS = new ArrayList<>();
         Course lect = courseRepository.findByAbbreviationAndParentCourseIsNotNull("LECT");
@@ -371,5 +371,186 @@ public class ExamServiceImpl implements ExamService {
         return examCourseResultDTOS;
 
 
+    }*/
+
+    @Override
+    public List<ExamCourseResultDTO> getExamEffectiveByCourseByStudent(Long studentId, Long cycleId) {
+        List<ExamCourseResultDTO> examCourseResultDTOS = new ArrayList<>();
+
+        examRepository.getExamsWithResults(cycleId).forEach(exam -> {
+            ExamCourseResultDTO examCourseResultDTO = new ExamCourseResultDTO();
+            courseRepository.findByParentCourseIsNotNull().forEach(course -> {
+                examResultRepository.listExamEffectiveByCourseByStudent(studentId, course.getId(),exam.getId()).forEach(examResult -> {
+                    examCourseResultDTO.setName(examResult.getName());
+                    validateCourse(examResult, examCourseResultDTO, course.getAbbreviation());
+                });
+
+            });
+            examCourseResultDTOS.add(examCourseResultDTO);
+        });
+
+        return examCourseResultDTOS;
+
+        /*Course lect = courseRepository.findByAbbreviationAndParentCourseIsNotNull("LECT");
+        Course nyo = courseRepository.findByAbbreviationAndParentCourseIsNotNull("NYO");
+        Course x = courseRepository.findByAbbreviationAndParentCourseIsNotNull("X");
+        Course geo = courseRepository.findByAbbreviationAndParentCourseIsNotNull("GEO");
+        Course trigo = courseRepository.findByAbbreviationAndParentCourseIsNotNull("TRIGO");
+        Course est = courseRepository.findByAbbreviationAndParentCourseIsNotNull("EST");
+
+        //sacar buenas y malas de lectura y matemática
+        List<ExamScoreDTO> lectura = examResultRepository.listExamEffectiveByCourseByStudent(idStudent, idCycle, lect.getId());
+        List<ExamScoreDTO> nyoExam = examResultRepository.listExamEffectiveByCourseByStudent(idStudent, idCycle, nyo.getId());
+        List<ExamScoreDTO> xExam = examResultRepository.listExamEffectiveByCourseByStudent(idStudent, idCycle, x.getId());
+        List<ExamScoreDTO> geoExam = examResultRepository.listExamEffectiveByCourseByStudent(idStudent, idCycle, geo.getId());
+        List<ExamScoreDTO> trigoExam = examResultRepository.listExamEffectiveByCourseByStudent(idStudent, idCycle, trigo.getId());
+        List<ExamScoreDTO> estExam = examResultRepository.listExamEffectiveByCourseByStudent(idStudent, idCycle, est.getId());
+
+
+        for (int i = 0; i < lectura.size(); i++) {
+            ExamCourseResultDTO examScoreDTO = new ExamCourseResultDTO();
+            examScoreDTO.setName(lectura.get(i).getName());
+
+            examScoreDTO.setLectCorrect(lectura.get(i).getTotalCorrect());
+            examScoreDTO.setLectIncorrect(lectura.get(i).getTotalIncorrect());
+
+            examScoreDTO.setNyoCorrect(nyoExam.get(i).getTotalCorrect());
+            examScoreDTO.setNyoIncorrect(nyoExam.get(i).getTotalIncorrect());
+
+            examScoreDTO.setXCorrect(xExam.get(i).getTotalCorrect());
+            examScoreDTO.setXIncorrect(xExam.get(i).getTotalIncorrect());
+
+            examScoreDTO.setGeoCorrect(geoExam.get(i).getTotalCorrect());
+            examScoreDTO.setGeoIncorrect(geoExam.get(i).getTotalIncorrect());
+
+            if (!trigoExam.isEmpty()) {
+                examScoreDTO.setTrigoCorrect(trigoExam.get(i).getTotalCorrect());
+                examScoreDTO.setTrigoIncorrect(trigoExam.get(i).getTotalIncorrect());
+            }
+
+            if (!estExam.isEmpty()) {
+                examScoreDTO.setEstCorrect(estExam.get(i).getTotalCorrect());
+                examScoreDTO.setEstIncorrect(estExam.get(i).getTotalIncorrect());
+            }
+
+            examCourseResultDTOS.add(examScoreDTO);
+        }
+        return examCourseResultDTOS;*/
+
+
+    }
+
+    private void validateCourse(ExamScoreDTO examResult, ExamCourseResultDTO examCourseResultDTO, String abbreviation) {
+        switch (abbreviation) {
+            case "LECT":
+                examCourseResultDTO.setLectCorrect(examResult.getTotalCorrect());
+                examCourseResultDTO.setLectIncorrect(examResult.getTotalIncorrect());
+                break;
+            case "NYO":
+                examCourseResultDTO.setNyoCorrect(examResult.getTotalCorrect());
+                examCourseResultDTO.setNyoIncorrect(examResult.getTotalIncorrect());
+                break;
+            case "X":
+                examCourseResultDTO.setXCorrect(examResult.getTotalCorrect());
+                examCourseResultDTO.setXIncorrect(examResult.getTotalIncorrect());
+                break;
+            case "GEO":
+                examCourseResultDTO.setGeoCorrect(examResult.getTotalCorrect());
+                examCourseResultDTO.setGeoIncorrect(examResult.getTotalIncorrect());
+                break;
+            case "TRIGO":
+                examCourseResultDTO.setTrigoCorrect(examResult.getTotalCorrect());
+                examCourseResultDTO.setTrigoIncorrect(examResult.getTotalIncorrect());
+                break;
+            case "EST":
+                examCourseResultDTO.setEstCorrect(examResult.getTotalCorrect());
+                examCourseResultDTO.setEstIncorrect(examResult.getTotalIncorrect());
+                break;
+            default:
+                break;
+
+        }
+    }
+
+    @Override
+    public ExamDataSummary getExamSummaryByTutor(Long areaId, Long userId, Long cycleId) {
+        ExamDataSummary examDataSummary = new ExamDataSummary();
+
+        List<ExamData> examDatas = new ArrayList<>();
+        List<ExamIndicator> lectData = new ArrayList<>();
+        List<ExamIndicator> mateData = new ArrayList<>();
+
+        if (areaId == -1) {
+            areaId = null;
+        }
+
+
+        List<List<Object[]>> allMinLect = new ArrayList<>();
+        List<List<Object[]>> allMaxLect = new ArrayList<>();
+        List<List<Object[]>> allAvgLect = new ArrayList<>();
+
+        List<List<Object[]>> allMinMate = new ArrayList<>();
+        List<List<Object[]>> allMaxMate = new ArrayList<>();
+        List<List<Object[]>> allAvgMate = new ArrayList<>();
+
+        //listar todos los examenes con resultados del ciclo
+        Long finalAreaId = areaId;
+        examRepository.getExamsWithResults(cycleId).forEach(exam -> {
+            ExamData examData = new ExamData();
+            examData.setId(exam.getId());
+            examData.setName(exam.getName());
+            examData.setDate(exam.getDate());
+            examDatas.add(examData);
+
+            //sacar agregados de lectura para el area por usuario
+            List<Object[]> minLect = examResultRepository.getMinExamResult(exam.getId(), finalAreaId, userId, 1L);
+            List<Object[]> maxLect = examResultRepository.getMaxExamResult(exam.getId(), finalAreaId, userId, 1L);
+            List<Object[]> avgLect = examResultRepository.getAvgExamResult(exam.getId(), finalAreaId, userId, 1L);
+
+            //sacar agregados de mate para el area por usuario
+            List<Object[]> minMate = examResultRepository.getMinExamResult(exam.getId(), finalAreaId, userId, 2L);
+            List<Object[]> maxMate = examResultRepository.getMaxExamResult(exam.getId(), finalAreaId, userId, 2L);
+            List<Object[]> avgMate = examResultRepository.getAvgExamResult(exam.getId(), finalAreaId, userId, 2L);
+
+            allMinLect.add(minLect);
+            allMaxLect.add(maxLect);
+            allAvgLect.add(avgLect);
+
+            allMinMate.add(minMate);
+            allMaxMate.add(maxMate);
+            allAvgMate.add(avgMate);
+
+        });
+        examDataSummary.setExamData(examDatas);
+
+        setExamIndicator("Min", allMinLect, lectData);
+        setExamIndicator("Max", allMaxLect, lectData);
+        setExamIndicator("Avg", allAvgLect, lectData);
+
+        setExamIndicator("Min", allMinMate, mateData);
+        setExamIndicator("Max", allMaxMate, mateData);
+        setExamIndicator("Avg", allAvgMate, mateData);
+
+        examDataSummary.setLectData(lectData);
+        examDataSummary.setMateData(mateData);
+
+        return examDataSummary;
+    }
+
+    private void setExamIndicator(String indicator, List<List<Object[]>> allData, List<ExamIndicator> data) {
+        ExamIndicator examIndicator = new ExamIndicator();
+        List<ExamResultIndicator> examResultIndicators = new ArrayList<>();
+        examIndicator.setIndicator(indicator);
+        for (List<Object[]> listData : allData) {
+            for (Object[] result : listData) {
+                ExamResultIndicator examResultIndicator = new ExamResultIndicator();
+                examResultIndicator.setExamId((Long) result[0]);
+                examResultIndicator.setCorrect(Integer.parseInt(String.valueOf(result[1])));
+                examResultIndicator.setIncorrect(Integer.parseInt(String.valueOf(result[2])));
+                examResultIndicators.add(examResultIndicator);
+            }
+        }
+        examIndicator.setResults(examResultIndicators);
+        data.add(examIndicator);
     }
 }

@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import org.springframework.web.multipart.MultipartFile;
 import pe.com.edu.prismaapp.prisma.dto.ExamCourseResultDTO;
 import pe.com.edu.prismaapp.prisma.dto.ExamDTO;
+import pe.com.edu.prismaapp.prisma.dto.ExamDataSummary;
 import pe.com.edu.prismaapp.prisma.dto.ExamScoreDTO;
 import pe.com.edu.prismaapp.prisma.util.AreaEnum;
 
@@ -24,4 +25,6 @@ public interface ExamService {
     List<ExamScoreDTO> getExamEffectiveByStudent(Long idStudent, Long idCycle);
 
     List<ExamCourseResultDTO> getExamEffectiveByCourseByStudent(Long idStudent, Long idCycle);
+
+    ExamDataSummary getExamSummaryByTutor(Long areaId, Long userId, Long cycleId);
 }
