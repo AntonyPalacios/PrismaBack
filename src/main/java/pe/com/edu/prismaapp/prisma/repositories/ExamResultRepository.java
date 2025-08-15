@@ -45,11 +45,9 @@ public interface ExamResultRepository extends JpaRepository<ExamResult, Long> {
             "INNER JOIN F.examResult A " +
             "INNER JOIN A.studentStage B " +
             "INNER JOIN A.exam C " +
-            "INNER JOIN C.stage D " +
-            "INNER JOIN D.cycle E " +
-            "WHERE B.student.id = :studentId AND E.id = :cycleId AND F.course.id = :courseId " +
+            "WHERE B.student.id = :studentId AND F.course.id = :courseId AND A.exam.id = :examId " +
             "ORDER BY C.date ")
-    List<ExamScoreDTO> listExamEffectiveByCourseByStudent(Long studentId, Long cycleId, Long courseId);
+    List<ExamScoreDTO> listExamEffectiveByCourseByStudent(Long studentId, Long courseId, Long examId);
 
     @Query(value = "SELECT d.id_exam, min(t.sum_correct), min(t.sum_incorrect) " +
             "FROM texam d " +
