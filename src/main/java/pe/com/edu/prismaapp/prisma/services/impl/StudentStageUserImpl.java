@@ -48,4 +48,15 @@ public class StudentStageUserImpl implements StudentStageUserService {
     public boolean isStudentAssignedToTutor(Long studentStageId, Long tutorId) {
         return studentStageUserRepository.existsByUser_IdAndStudentStage_Id(tutorId, studentStageId);
     }
+
+    @Override
+    @Transactional
+    public void validateStudentTutor(Long studentStageId, Long tutorId) {
+        StudentStageUser studentStageUser = studentStageUserRepository.findByStudentStage_Id(studentStageId);
+        if (studentStageUser != null &&
+                studentStageUser.getUser() != null &&
+                !studentStageUser.getUser().getId().equals(tutorId)) {
+            studentStageUserRepository.updateTutor(studentStageId,tutorId);
+        }
+    }
 }

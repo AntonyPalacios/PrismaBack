@@ -17,4 +17,6 @@ public interface StudentStageService {
     void deleteStudent(Long id);
 
     StudentStage getStudentStage(Long stageId, Long studentId);
+
+    void validateStudentTutor(Long id, Long tutorId);
 }
