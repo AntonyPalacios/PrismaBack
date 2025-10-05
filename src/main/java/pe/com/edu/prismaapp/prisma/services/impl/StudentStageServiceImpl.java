@@ -68,4 +68,10 @@ public class StudentStageServiceImpl implements StudentStageService {
     public void validateStudentTutor(Long studentStage, Long tutorId) {
         studentStageUserService.validateStudentTutor(studentStage,tutorId);
     }
+
+    @Override
+    @Transactional
+    public void saveStudent(Long studentId, Long stageId) {
+        studentStageRepository.saveStudentWithIds(studentId, stageId);
+    }
 }

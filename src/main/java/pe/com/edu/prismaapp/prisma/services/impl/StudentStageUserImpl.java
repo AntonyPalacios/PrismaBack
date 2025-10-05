@@ -53,8 +53,9 @@ public class StudentStageUserImpl implements StudentStageUserService {
     @Transactional
     public void validateStudentTutor(Long studentStageId, Long tutorId) {
         StudentStageUser studentStageUser = studentStageUserRepository.findByStudentStage_Id(studentStageId);
-        if (studentStageUser != null &&
-                studentStageUser.getUser() != null &&
+        if(studentStageUser == null) {
+            studentStageUserRepository.saveStudentStageUser(studentStageId,tutorId);
+        }else if (studentStageUser.getUser() != null &&
                 !studentStageUser.getUser().getId().equals(tutorId)) {
             studentStageUserRepository.updateTutor(studentStageId,tutorId);
         }
