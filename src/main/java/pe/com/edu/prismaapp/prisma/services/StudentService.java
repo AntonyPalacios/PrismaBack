@@ -21,4 +21,6 @@ public interface StudentService {
     void uploadStudents(MultipartFile file);
 
     Student findByDniOrName(String dni,String name);
+
+    Student findById(Long id);
 }

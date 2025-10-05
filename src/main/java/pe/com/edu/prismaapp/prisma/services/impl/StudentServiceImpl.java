@@ -224,4 +224,9 @@ public class StudentServiceImpl implements StudentService {
             throw new RuntimeException(e);
         }
     }
+
+    @Override
+    public Student findById(Long id) {
+        return studentRepository.findById(id).orElse(null);
+    }
 }

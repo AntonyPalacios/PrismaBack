@@ -188,12 +188,24 @@ public class ExamServiceImpl implements ExamService {
             studentDTO = studentService.save(studentDTO);
         }
         //por cada registro, buscar al alumno de la etapa y asignarlo a texamresult
-        StudentStage studentStage = studentStageService.getStudentStage(stageId,
-                student == null ? studentDTO.getId() : student.getId());
+        Long studentId = student == null ? studentDTO.getId() : student.getId();
+        StudentStage studentStage = studentStageService.getStudentStage(stageId,studentId);
+
         if(student != null){
+            //si estamos en una nueva etapa, se crean los registros
+            if(studentStage == null) {
+                studentStage = saveStudentStage(studentId,stageId);
+                //studentStage = studentStageService.getStudentStage(stageId,studentId);
+            }
             studentStageService.validateStudentTutor(studentStage.getId(),tutorId);
         }
         return studentStage;
+    }
+
+    private StudentStage saveStudentStage(Long studentId, Long stageId) {
+        Student student = studentService.findById(studentId);
+        Optional<Stage> optStage = stageService.getStageById(stageId);
+        return studentStageService.saveStudent(student,optStage.get(),true);
     }
 
 

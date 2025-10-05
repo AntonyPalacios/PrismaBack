@@ -17,4 +17,8 @@ public interface StudentStageUserRepository extends JpaRepository<StudentStageUs
     @Modifying
     @Query("UPDATE StudentStageUser s set s.user.id = :tutorId where s.studentStage.id = :studentStageId")
     void updateTutor(Long studentStageId, Long tutorId);
+
+    @Modifying
+    @Query(value = "INSERT INTO tstudentstageuser(id_student_stage,id_user) VALUES (:studentStageId, :tutorId)",nativeQuery = true)
+    void saveStudentStageUser(Long studentStageId, Long tutorId);
 }
