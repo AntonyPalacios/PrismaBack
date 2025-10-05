@@ -161,23 +161,24 @@ public class ExamServiceImpl implements ExamService {
 
     }
 
-    private StudentStage getStudentStage(AreaEnum area, int i, String name, Long stageId, Row row, DataFormatter dataFormatter, FormulaEvaluator evaluator) {
+    private StudentStage getStudentStage(AreaEnum area, int tutorColumnIndex, String name, Long stageId, Row row, DataFormatter dataFormatter, FormulaEvaluator evaluator) {
         Student student = studentService.findByDniOrName(null, name);
-        String tutor = dataFormatter.formatCellValue(row.getCell(i), evaluator).trim();
+        String tutor = dataFormatter.formatCellValue(row.getCell(tutorColumnIndex), evaluator).trim();
+
+        Optional<User> optionalTutor = userService.findTutorByName(tutor);
+        Long tutorId = 0L;
+        if (optionalTutor.isPresent()) {
+            tutorId = optionalTutor.get().getId();
+        }
         StudentDTO studentDTO = new StudentDTO();
         if (student == null) {
             //crear alumno
             studentDTO.setDni("");
             studentDTO.setName(name);
             studentDTO.setStageId(stageId);
+            studentDTO.setActive(true);
             Optional<Area> optionalArea = areaService.findAreaByName(area.name());
-            Optional<User> optionalTutor = userService.findTutorByName(tutor);
-
-            if (optionalTutor.isPresent()) {
-                studentDTO.setTutorId(optionalTutor.get().getId());
-            } else {
-                studentDTO.setTutorId(0L);
-            }
+            studentDTO.setTutorId(tutorId);
 
             if (optionalArea.isPresent()) {
                 studentDTO.setAreaId(optionalArea.get().getId());
@@ -187,8 +188,12 @@ public class ExamServiceImpl implements ExamService {
             studentDTO = studentService.save(studentDTO);
         }
         //por cada registro, buscar al alumno de la etapa y asignarlo a texamresult
-        return studentStageService.getStudentStage(stageId,
+        StudentStage studentStage = studentStageService.getStudentStage(stageId,
                 student == null ? studentDTO.getId() : student.getId());
+        if(student != null){
+            studentStageService.validateStudentTutor(studentStage.getId(),tutorId);
+        }
+        return studentStage;
     }
 
 

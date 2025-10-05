@@ -62,4 +62,10 @@ public class StudentStageServiceImpl implements StudentStageService {
     public StudentStage getStudentStage(Long stageId, Long studentId) {
         return studentStageRepository.findByStudent_IdAndStage_Id(studentId, stageId);
     }
+
+    @Override
+    @Transactional
+    public void validateStudentTutor(Long studentStage, Long tutorId) {
+        studentStageUserService.validateStudentTutor(studentStage,tutorId);
+    }
 }

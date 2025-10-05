@@ -119,6 +119,9 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public Optional<User> findTutorByName(String name) {
+        if(name.isEmpty()){
+            return Optional.empty();
+        }
         return userRepository.findByNameLikeIgnoreCase('%' + name + '%');
     }
 }
