@@ -27,4 +27,5 @@ public class UserDTO {
     private boolean isActive;
     @JsonProperty("isTutor")
     private boolean isTutor;
+    private String picture;
 }

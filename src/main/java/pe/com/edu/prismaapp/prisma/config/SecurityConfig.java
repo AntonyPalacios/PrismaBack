@@ -28,6 +28,7 @@ import pe.com.edu.prismaapp.prisma.auth.CustomOAuth2UserService;
 import pe.com.edu.prismaapp.prisma.auth.CustomUserDetailsService;
 import pe.com.edu.prismaapp.prisma.auth.JwtRequestFilter;
 import pe.com.edu.prismaapp.prisma.auth.JwtUtil;
+import pe.com.edu.prismaapp.prisma.repositories.UserRepository;
 
 import java.util.Arrays;
 import java.util.List;
@@ -43,6 +44,9 @@ public class SecurityConfig implements WebMvcConfigurer { // Implementa WebMvcCo
 
     @Autowired
     private CustomUserDetailsService customUserDetailsService;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @Autowired
     private JwtUtil jwtUtil;
@@ -89,7 +93,26 @@ public class SecurityConfig implements WebMvcConfigurer { // Implementa WebMvcCo
                         .successHandler((request, response, authentication) -> {
                             // Manejador de éxito para OAuth2
                             if (authentication instanceof OAuth2AuthenticationToken oauthToken) {
+                                // --- INICIO DE LA LÓGICA DE ACTUALIZACIÓN ---
+
+                                // Obtenemos los atributos directamente del token de autenticación
                                 String email = oauthToken.getPrincipal().getAttribute("email");
+                                String name = oauthToken.getPrincipal().getAttribute("name");
+                                String picture = oauthToken.getPrincipal().getAttribute("picture");
+                                String provider = oauthToken.getAuthorizedClientRegistrationId(); // "google"
+                                String providerId = oauthToken.getPrincipal().getName(); // ID único de Google
+
+                                // Buscamos al usuario existente y actualizamos sus datos
+                                // Esta es la misma lógica que tenías en CustomOAuth2UserService
+                                userRepository.findByEmail(email).ifPresent(user -> {
+                                    user.setName(name);
+                                    user.setPicture(picture);
+                                    user.setProvider(provider);
+                                    user.setProviderId(providerId);
+                                    userRepository.save(user); // Guardamos los cambios
+                                });
+
+                                // --- FIN DE LA LÓGICA DE ACTUALIZACIÓN ---
                                 // Carga UserDetails para obtener los roles y generar el JWT
                                 UserDetails userDetails = customUserDetailsService.loadUserByUsername(email);
                                 String jwt = jwtUtil.generateToken(userDetails); // Genera JWT con roles
