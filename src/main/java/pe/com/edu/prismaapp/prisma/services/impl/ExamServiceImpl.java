@@ -1,6 +1,8 @@
 package pe.com.edu.prismaapp.prisma.services.impl;
 
 import org.apache.poi.ss.usermodel.*;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -17,6 +19,7 @@ import pe.com.edu.prismaapp.prisma.util.AreaEnum;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -164,7 +167,7 @@ public class ExamServiceImpl implements ExamService {
     private StudentStage getStudentStage(AreaEnum area, int tutorColumnIndex, String name, Long stageId, Row row, DataFormatter dataFormatter, FormulaEvaluator evaluator) {
         Student student = studentService.findByDniOrName(null, name);
         String tutor = dataFormatter.formatCellValue(row.getCell(tutorColumnIndex), evaluator).trim();
-
+        System.out.println(student.getName());
         Optional<User> optionalTutor = userService.findTutorByName(tutor);
         Long tutorId = 0L;
         if (optionalTutor.isPresent()) {
@@ -512,7 +515,10 @@ public class ExamServiceImpl implements ExamService {
 
         //listar todos los examenes con resultados del ciclo
         Long finalAreaId = areaId;
-        examRepository.getExamsWithResults(cycleId).forEach(exam -> {
+        Pageable topFour = PageRequest.of(0, 4);
+        List<Exam> lastFourExams = examRepository.getExamsWithResultsLastFour(cycleId,topFour);
+        Collections.reverse(lastFourExams);
+        lastFourExams.forEach(exam -> {
             ExamData examData = new ExamData();
             examData.setId(exam.getId());
             examData.setName(exam.getName());

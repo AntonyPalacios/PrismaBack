@@ -1,5 +1,6 @@
 package pe.com.edu.prismaapp.prisma.repositories;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import pe.com.edu.prismaapp.prisma.entities.Exam;
@@ -17,4 +18,10 @@ public interface ExamRepository extends JpaRepository<Exam, Long> {
             "where e.stage.cycle.id = :cycleId " +
             "order by e.date asc")
     List<Exam> getExamsWithResults(Long cycleId);
+
+    @Query("Select distinct e from Exam e " +
+            " inner join ExamResult er on e.id = er.exam.id " +
+            "where e.stage.cycle.id = :cycleId " +
+            "order by e.date desc ")
+    List<Exam> getExamsWithResultsLastFour(Long cycleId, Pageable pageable);
 }

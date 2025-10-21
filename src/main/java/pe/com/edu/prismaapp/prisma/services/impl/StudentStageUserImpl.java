@@ -55,7 +55,7 @@ public class StudentStageUserImpl implements StudentStageUserService {
         StudentStageUser studentStageUser = studentStageUserRepository.findByStudentStage_Id(studentStageId);
         if(studentStageUser == null) {
             studentStageUserRepository.saveStudentStageUser(studentStageId,tutorId);
-        }else if (studentStageUser.getUser() != null &&
+        }else if (studentStageUser.getUser() != null && tutorId != 0L &&
                 !studentStageUser.getUser().getId().equals(tutorId)) {
             studentStageUserRepository.updateTutor(studentStageId,tutorId);
         }
