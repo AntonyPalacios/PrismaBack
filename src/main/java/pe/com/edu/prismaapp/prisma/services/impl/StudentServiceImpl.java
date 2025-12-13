@@ -47,11 +47,15 @@ public class StudentServiceImpl implements StudentService {
     public StudentDTO save(StudentDTO studentDTO) {
         Student student = new Student();
         mapStudentValues(studentDTO, student);
-
-        Optional<Stage> optionalStage = stageService.getCurrentStage();
         Stage stage = null;
-        if(optionalStage.isPresent()){
-            stage = optionalStage.get();
+        if(studentDTO.getStageId() == null) {
+            Optional<Stage> optionalStage = stageService.getCurrentStage();
+
+            if(optionalStage.isPresent()){
+                stage = optionalStage.get();
+            }
+        }else{
+            stage = stageService.getStageById(studentDTO.getStageId()).get();
         }
         StudentStage studentStage = studentStageService.saveStudent(student,stage,studentDTO.isActive());
         StudentStageUser studentStageUser = new StudentStageUser();
