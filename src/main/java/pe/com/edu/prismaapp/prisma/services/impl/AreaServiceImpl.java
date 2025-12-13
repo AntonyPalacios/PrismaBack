@@ -1,6 +1,7 @@
 package pe.com.edu.prismaapp.prisma.services.impl;
 
 import org.springframework.stereotype.Service;
+import pe.com.edu.prismaapp.prisma.dto.AreaApi;
 import pe.com.edu.prismaapp.prisma.entities.Area;
 import pe.com.edu.prismaapp.prisma.repositories.AreaRepository;
 import pe.com.edu.prismaapp.prisma.services.AreaService;
@@ -19,8 +20,11 @@ public class AreaServiceImpl implements AreaService {
 
 
     @Override
-    public List<Area> getAreas() {
-        return areaRepository.findAllByOrderByNameAsc();
+    public List<AreaApi.Response> getAreas() {
+        var areas = areaRepository.findAllByOrderByNameAsc();
+        return areas.stream()
+                .map(AreaApi.Response::from)
+                .toList();
     }
 
     @Override

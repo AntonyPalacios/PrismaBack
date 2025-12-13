@@ -1,10 +1,8 @@
 package pe.com.edu.prismaapp.prisma.services.impl;
 
-import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import pe.com.edu.prismaapp.prisma.dto.StageDTO;
-import pe.com.edu.prismaapp.prisma.entities.Cycle;
+import pe.com.edu.prismaapp.prisma.dto.StageApi;
 import pe.com.edu.prismaapp.prisma.entities.Stage;
 import pe.com.edu.prismaapp.prisma.errorHandler.ResourceNotFoundException;
 import pe.com.edu.prismaapp.prisma.repositories.CycleRepository;
@@ -16,7 +14,6 @@ import pe.com.edu.prismaapp.prisma.util.UtilHelper;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Service
 public class StageServiceImpl implements StageService {
@@ -32,42 +29,52 @@ public class StageServiceImpl implements StageService {
     }
 
     @Override
-    public List<StageDTO> findAll(Long idCycle) {
+    public List<StageApi.Response> findAll(Long idCycle) {
         List<Stage> stages = stageRepository.findAllByCycle_IdOrderByStartDateDesc(idCycle);
-        return stages.stream().map(StageDTO::new).collect(Collectors.toList());
-    }
-
-    @Override
-    public StageDTO save(StageDTO stageDTO) {
-        Stage stage = new Stage();
-        mapValues(stageDTO, stage);
-
-        stageDTO.setId(stage.getId());
-        return stageDTO;
+        return stages
+                .stream()
+                .map(StageApi.Response::from)
+                .toList();
     }
 
     @Override
     @Transactional
-    public StageDTO update(Long id, StageDTO stageDTO) {
-        Stage stage = stageRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Etapa no encontrada con ID: " + id));
-        mapValues(stageDTO, stage);
-        return stageDTO;
-    }
-
-    private void mapValues(StageDTO stageDTO, Stage stage) {
-        stage.setName(stageDTO.getName());
-        stage.setStartDate(stageDTO.getStartDate());
-        stage.setEndDate(stageDTO.getEndDate());
-        boolean isCurrent = UtilHelper.validateCurrent(stageDTO.getStartDate(),stageDTO.getEndDate());
+    public StageApi.Response save(StageApi.Create stageDTO) {
+        var stage = new Stage();
+        stage.setName(stageDTO.name());
+        stage.setStartDate(stageDTO.startDate());
+        stage.setEndDate(stageDTO.endDate());
+        var isCurrent = UtilHelper.validateCurrent(stageDTO.startDate(), stageDTO.endDate());
         stage.setCurrent(isCurrent);
-        Cycle cycle = cycleRepository.findById(stageDTO.getIdCycle())
-                .orElseThrow(() -> new ResourceNotFoundException("Ciclo no encontrado con ID: " + stageDTO.getIdCycle()));
+        var cycle = cycleRepository.findById(stageDTO.idCycle())
+                .orElseThrow(() -> new ResourceNotFoundException("Ciclo no encontrado con ID: " + stageDTO.idCycle()));
         stage.setCycle(cycle);
-        stage = stageRepository.save(stage);
-        if(isCurrent){
+        stage = stageRepository.saveAndFlush(stage);
+        if (isCurrent) {
             stageRepository.setCurrentFalseOthers(stage.getId());
         }
+
+        return StageApi.Response.from(stage);
+    }
+
+    @Override
+    @Transactional
+    public StageApi.Response update(Long id, StageApi.Update stageDTO) {
+        var stage = stageRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Etapa no encontrada con ID: " + id));
+        stage.setName(stageDTO.name());
+        stage.setStartDate(stageDTO.startDate());
+        stage.setEndDate(stageDTO.endDate());
+        var isCurrent = UtilHelper.validateCurrent(stageDTO.startDate(), stageDTO.endDate());
+        stage.setCurrent(isCurrent);
+        var cycle = cycleRepository.findById(stageDTO.idCycle())
+                .orElseThrow(() -> new ResourceNotFoundException("Ciclo no encontrado con ID: " + stageDTO.idCycle()));
+        stage.setCycle(cycle);
+        stage = stageRepository.saveAndFlush(stage);
+        if (isCurrent) {
+            stageRepository.setCurrentFalseOthers(stage.getId());
+        }
+        return StageApi.Response.from(stage);
     }
 
     @Override
@@ -84,16 +91,16 @@ public class StageServiceImpl implements StageService {
     @Override
     public Optional<Stage> getCurrentStage() {
         Date currentDate = new Date();
-        return stageRepository.findStageByStartDateBeforeAndEndDateAfter(currentDate,currentDate);
+        return stageRepository.findStageByStartDateBeforeAndEndDateAfter(currentDate, currentDate);
     }
 
     @Override
-    public StageDTO getCurrentStageDTO() {
-        Optional<Stage> optionalStage =  this.getCurrentStage();
-        if(optionalStage.isPresent()){
+    public StageApi.Response getCurrentStageDTO() {
+        Optional<Stage> optionalStage = this.getCurrentStage();
+        if (optionalStage.isPresent()) {
             Stage stage = optionalStage.get();
-            return new StageDTO(stage);
-        }else{
+            return StageApi.Response.from(stage);
+        } else {
             return null;
         }
 
@@ -102,5 +109,11 @@ public class StageServiceImpl implements StageService {
     @Override
     public Optional<Stage> getStageById(Long id) {
         return stageRepository.findById(id);
+    }
+
+    @Override
+    @Transactional
+    public void deleteByCycleId(Long cycleId) {
+        stageRepository.deleteAllByCycle_Id(cycleId);
     }
 }

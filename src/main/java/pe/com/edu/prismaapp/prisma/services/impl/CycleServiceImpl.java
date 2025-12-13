@@ -1,8 +1,9 @@
 package pe.com.edu.prismaapp.prisma.services.impl;
 
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import pe.com.edu.prismaapp.prisma.dto.CycleDTO;
+import pe.com.edu.prismaapp.prisma.dto.CycleApi;
 import pe.com.edu.prismaapp.prisma.entities.Cycle;
 import pe.com.edu.prismaapp.prisma.entities.Stage;
 import pe.com.edu.prismaapp.prisma.errorHandler.ResourceNotFoundException;
@@ -13,7 +14,6 @@ import pe.com.edu.prismaapp.prisma.util.UtilHelper;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -28,65 +28,59 @@ public class CycleServiceImpl implements CycleService {
     }
 
     @Override
-    public List<CycleDTO> findAll() {
-        List<Cycle> cycles = cycleRepository.findAll();
-        Collections.sort(cycles);
-
+    public List<CycleApi.Response> findAll() {
+        var cycles = cycleRepository.findAll(Sort.by(Sort.Direction.DESC, "startDate"));
         return cycles.stream()
-                .map(CycleDTO::new)
-                .collect(Collectors.toList());
+                .map(CycleApi.Response::from)
+                .toList();
     }
 
     @Override
     @Transactional
-    public CycleDTO save(CycleDTO cycleDTO) {
-        Cycle cycle = new Cycle();
-        mapValues(cycleDTO, cycle);
-        cycleDTO.setId(cycle.getId());
-        return cycleDTO;
-    }
-
-    @Override
-    @Transactional
-    public CycleDTO update(Long id, CycleDTO cycleDTO) {
-        Cycle cycle = cycleRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Ciclo no encontrado con ID: " + id));
-        mapValues(cycleDTO, cycle);
-        return cycleDTO;
-    }
-
-    private void mapValues(CycleDTO cycleDTO, Cycle cycle) {
-        cycle.setName(cycleDTO.getName());
-        cycle.setStartDate(cycleDTO.getStartDate());
-        cycle.setEndDate(cycleDTO.getEndDate());
-        boolean isCurrent = UtilHelper.validateCurrent(cycleDTO.getStartDate(),cycleDTO.getEndDate());
+    public CycleApi.Response save(CycleApi.Create cycleDTO) {
+        var cycle = new Cycle();
+        cycle.setName(cycleDTO.name());
+        cycle.setStartDate(cycleDTO.startDate());
+        cycle.setEndDate(cycleDTO.endDate());
+        var isCurrent = UtilHelper.validateCurrent(cycleDTO.startDate(), cycleDTO.endDate());
         cycle.setCurrent(isCurrent);
-        cycle = cycleRepository.save(cycle);
-        if(isCurrent){
+        cycle = cycleRepository.saveAndFlush(cycle);
+        if (isCurrent) {
             cycleRepository.setCurrentFalseOthers(cycle.getId());
         }
-        cycleDTO.setCurrent(isCurrent);
+        return CycleApi.Response.from(cycle);
+    }
+
+    @Override
+    @Transactional
+    public CycleApi.Response update(Long id, CycleApi.Update cycleDTO) {
+        var cycle = cycleRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Ciclo no encontrado con ID: " + id));
+        cycle.setName(cycleDTO.name());
+        cycle.setStartDate(cycleDTO.startDate());
+        cycle.setEndDate(cycleDTO.endDate());
+        var isCurrent = UtilHelper.validateCurrent(cycleDTO.startDate(), cycleDTO.endDate());
+        cycle.setCurrent(isCurrent);
+        cycle = cycleRepository.saveAndFlush(cycle);
+        if (isCurrent) {
+            cycleRepository.setCurrentFalseOthers(cycle.getId());
+        }
+        return CycleApi.Response.from(cycle);
     }
 
     @Override
     @Transactional
     public void delete(Long id) {
-        Cycle cycle = cycleRepository.findCycleByIdWithStages(id)
+        var cycle = cycleRepository.findCycleByIdWithStages(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Ciclo no encontrado con ID: " + id));
 
-        List<Stage> stages = cycle.getStages();
-        List<Stage> stagesToDelete = new java.util.ArrayList<>(stages);
-
-        for(Stage stage : stagesToDelete){
-            stageService.delete(stage.getId());
-        }
-
+        stageService.deleteByCycleId(cycle.getId());
         cycleRepository.deleteById(id);
     }
 
     @Override
-    public CycleDTO getCurrentCycle() {
+    public CycleApi.Response getCurrentCycle() {
         Cycle cycle = cycleRepository.findCycleByCurrentTrue();
-        return new CycleDTO(cycle);
+        return CycleApi.Response.from(cycle);
     }
 }
