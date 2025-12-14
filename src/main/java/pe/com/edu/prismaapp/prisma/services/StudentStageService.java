@@ -1,6 +1,6 @@
 package pe.com.edu.prismaapp.prisma.services;
 
-import pe.com.edu.prismaapp.prisma.dto.StudentDTO;
+import pe.com.edu.prismaapp.prisma.dto.StudentApi;
 import pe.com.edu.prismaapp.prisma.entities.Stage;
 import pe.com.edu.prismaapp.prisma.entities.Student;
 import pe.com.edu.prismaapp.prisma.entities.StudentStage;
@@ -10,7 +10,7 @@ public interface StudentStageService {
 
     StudentStage saveStudent(Student student, Stage stage, boolean active);
 
-    StudentStage updateStudent(Student student, StudentDTO studentDTO);
+    StudentStage updateStudent(StudentApi.Update student);
 
     void deleteStudentStageByStageId(Long stageId);
 

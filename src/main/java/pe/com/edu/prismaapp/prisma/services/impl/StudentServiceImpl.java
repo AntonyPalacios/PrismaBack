@@ -8,7 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import pe.com.edu.prismaapp.prisma.auth.CustomUserDetails;
-import pe.com.edu.prismaapp.prisma.dto.StudentDTO;
+import pe.com.edu.prismaapp.prisma.dto.StudentApi;
 import pe.com.edu.prismaapp.prisma.entities.*;
 import pe.com.edu.prismaapp.prisma.errorHandler.ResourceNotFoundException;
 import pe.com.edu.prismaapp.prisma.repositories.StudentRepository;
@@ -16,7 +16,6 @@ import pe.com.edu.prismaapp.prisma.services.*;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -44,59 +43,59 @@ public class StudentServiceImpl implements StudentService {
 
     @Override
     @Transactional
-    public StudentDTO save(StudentDTO studentDTO) {
-        Student student = new Student();
-        mapStudentValues(studentDTO, student);
+    public StudentApi.Response save(StudentApi.Create studentDTO) {
+        var student = new Student();
+        saveOrUpdate(student, studentDTO.name(), studentDTO.email(), studentDTO.phone(), studentDTO.dni(), studentDTO.areaId());
+        studentRepository.saveAndFlush(student);
+
         Stage stage = null;
-        if(studentDTO.getStageId() == null) {
+        if (studentDTO.stageId() == null) {
             Optional<Stage> optionalStage = stageService.getCurrentStage();
 
-            if(optionalStage.isPresent()){
+            if (optionalStage.isPresent()) {
                 stage = optionalStage.get();
             }
-        }else{
-            stage = stageService.getStageById(studentDTO.getStageId()).get();
+        } else {
+            stage = stageService.getStageById(studentDTO.stageId()).get();
         }
-        StudentStage studentStage = studentStageService.saveStudent(student,stage,studentDTO.isActive());
-        StudentStageUser studentStageUser = new StudentStageUser();
+        var studentStage = studentStageService.saveStudent(student, stage, studentDTO.isActive());
+        var studentStageUser = new StudentStageUser();
         studentStageUser.setStudentStage(studentStage);
-        User tutor = userService.findTutorById(studentDTO.getTutorId()).orElse(null);
+        var tutor = userService.findTutorById(studentDTO.tutorId()).orElse(null);
         studentStageUser.setUser(tutor);
         studentStageUserService.save(studentStageUser);
 
-
-        studentDTO.setId(student.getId());
-        return studentDTO;
+        return StudentApi.Response.from(student, studentDTO.tutorId(), studentDTO.areaId(), stage.getId(), studentDTO.isActive());
     }
 
     @Override
     @Transactional
-    public StudentDTO update(Long id, StudentDTO studentDTO) {
-        Student student = studentRepository.findById(id)
+    public StudentApi.Response update(Long id, StudentApi.Update studentDTO) {
+        var student = studentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Alumno no encontrado con ID: " + id));
-        mapStudentValues(studentDTO, student);
+        saveOrUpdate(student, studentDTO.name(), studentDTO.email(), studentDTO.phone(), studentDTO.dni(), studentDTO.areaId());
+        studentRepository.save(student);
 
-        StudentStage studentStage = studentStageService.updateStudent(student,studentDTO);
-        StudentStageUser studentStageUser = studentStageUserService.findByStudentStageId(studentStage.getId());
-        User tutor = userService.findTutorById(studentDTO.getTutorId()).orElse(null);
+        var studentStage = studentStageService.updateStudent(studentDTO);
+        var studentStageUser = studentStageUserService.findByStudentStageId(studentStage.getId());
+        var tutor = userService.findTutorById(studentDTO.tutorId()).orElse(null);
         studentStageUser.setUser(tutor);
         studentStageUserService.save(studentStageUser);
 
-        return studentDTO;
+        return StudentApi.Response.from(student, studentDTO.tutorId(), studentDTO.areaId(), studentDTO.stageId(), studentDTO.isActive());
     }
 
-    private void mapStudentValues(StudentDTO studentDTO, Student student) {
-        student.setName(studentDTO.getName());
-        student.setEmail(studentDTO.getEmail());
-        student.setPhone(studentDTO.getPhone());
-        student.setDni(studentDTO.getDni());
+    private void saveOrUpdate(Student student, String name, String email, String phone, String dni, Long areaId) {
+        student.setName(name);
+        student.setEmail(email);
+        student.setPhone(phone);
+        student.setDni(dni);
 
-        if(studentDTO.getAreaId() != 0){
-            areaService.getAreaById(studentDTO.getAreaId()).ifPresent(student::setArea);
-        }else {
+        if (areaId != 0) {
+            areaService.getAreaById(areaId).ifPresent(student::setArea);
+        } else {
             student.setArea(null);
         }
-        studentRepository.save(student);
     }
 
     @Override
@@ -111,55 +110,50 @@ public class StudentServiceImpl implements StudentService {
     }
 
     @Override
-    public List<StudentDTO> findAll(Optional<Long> stageId) {
+    public List<StudentApi.Response> findAll(Optional<Long> stageId) {
         List<Object[]> studentsList;
-        List<StudentDTO> studentDTOList = new ArrayList<>();
 
         //se saca el rol del token para validar la lista de datos a enviar
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         CustomUserDetails currentUser = (CustomUserDetails) authentication.getPrincipal();
         Long currentUserId = null;
         Long currentStage = null;
-        if(stageId.isPresent()){
+        if (stageId.isPresent()) {
             currentStage = stageId.get();
         }
-        if(!currentUser.getAuthorities().contains(new SimpleGrantedAuthority("ROLE_ADMIN"))){
+        if (!currentUser.getAuthorities().contains(new SimpleGrantedAuthority("ROLE_ADMIN"))) {
             currentUserId = currentUser.getId();
         }
-        studentsList = studentRepository.findStudentsByStage(currentStage,currentUserId);
-        for (Object[] student : studentsList) {
-            StudentDTO studentDTO = new StudentDTO();
-            studentDTO.setId((Long) student[0]);
-            studentDTO.setDni((String) student[1]);
-            studentDTO.setEmail((String) student[2]);
-            studentDTO.setName((String) student[3]);
-            studentDTO.setPhone((String) student[4]);
-            studentDTO.setAreaId((Long) student[5]);
-            studentDTO.setTutorId((Long) student[6]);
-            studentDTO.setActive((Boolean) student[7]);
-            studentDTO.setStageId((Long) student[8]);
-            studentDTOList.add(studentDTO);
-        }
+        studentsList = studentRepository.findStudentsByStage(currentStage, currentUserId);
+        return studentsList.stream().map(student -> new StudentApi.Response(
+                (Long) student[0],   // id
+                (String) student[3], // name
+                (String) student[2], // email
+                (String) student[4], // phone
+                (String) student[1], // dni
+                (Long) student[6],   // tutorId
+                (Long) student[5],   // areaId
+                (Long) student[8],   // stageId
+                (Boolean) student[7] // active
 
-
-        return studentDTOList;
+        )).toList();
     }
 
     @Override
     public boolean isStudentAssignedToTutor(Long studentId, Long tutorId) {
         Stage currentStage = stageService.getCurrentStage().orElse(null);
-        if(currentStage == null) return false;
+        if (currentStage == null) return false;
         StudentStage studentStage = studentStageService.getStudentStage(currentStage.getId(), studentId);
-        return studentStageUserService.isStudentAssignedToTutor(studentStage.getId(),tutorId);
+        return studentStageUserService.isStudentAssignedToTutor(studentStage.getId(), tutorId);
     }
 
     @Override
     public Student findByDniOrName(String dni, String name) {
         Student student = null;
-        if(dni != null && dni.length() >= 8){
+        if (dni != null && dni.length() >= 8) {
             student = studentRepository.findByDniIgnoreCase(dni).orElse(null);
         }
-        if(student == null){
+        if (student == null) {
             student = studentRepository.findByNameIgnoreCase(name).orElse(null);
         }
         return student;
@@ -169,9 +163,7 @@ public class StudentServiceImpl implements StudentService {
     @Transactional
     public void uploadStudents(MultipartFile file) {
         Optional<Stage> optionalStage = stageService.getCurrentStage();
-        Stage stage;
-
-        try(InputStream inputStream = file.getInputStream()){
+        try (InputStream inputStream = file.getInputStream()) {
             Workbook workbook = WorkbookFactory.create(inputStream);
             DataFormatter dataFormatter = new DataFormatter();
 
@@ -188,39 +180,18 @@ public class StudentServiceImpl implements StudentService {
 
                 Student student = findByDniOrName(dni, name);
 
-                StudentDTO studentDTO = new StudentDTO();
-                studentDTO.setDni(dni);
-                studentDTO.setName(name);
-
                 Optional<Area> optionalArea = areaService.findAreaByName(area);
                 Optional<User> optionalTutor = userService.findTutorByName(tutor);
 
-                if (optionalTutor.isPresent()) {
-                    studentDTO.setTutorId(optionalTutor.get().getId());
-                }else{
-                    studentDTO.setTutorId(0L);
-                }
-
-                if (optionalArea.isPresent()) {
-                    studentDTO.setAreaId(optionalArea.get().getId());
-                }else{
-                    studentDTO.setAreaId(0L);
-                }
-
-                studentDTO.setActive(true);
-                if(student == null){
-                    studentDTO.setEmail("");
-                    studentDTO.setPhone("");
-                    this.save(studentDTO);
-                }else {
-
-                    if(optionalStage.isPresent()){
-                        stage = optionalStage.get();
-                        studentDTO.setStageId(stage.getId());
-                    }
-                    studentDTO.setEmail(student.getEmail());
-                    studentDTO.setPhone(student.getPhone());
-                    this.update(student.getId(), studentDTO);
+                Long tutorId = optionalTutor.isPresent() ? optionalTutor.get().getId() : 0L;
+                Long areaId = optionalArea.isPresent() ? optionalArea.get().getId() : 0L;
+                Long stageId = optionalStage.isPresent() ? optionalStage.get().getId() : null;
+                if (student == null) {
+                    StudentApi.Create studentCreate = new StudentApi.Create(name, "", "", dni, tutorId, areaId, stageId, true);
+                    this.save(studentCreate);
+                } else {
+                    StudentApi.Update studentUpdate = new StudentApi.Update(student.getId(), name, student.getEmail(), student.getPhone(), dni, tutorId, areaId, stageId, true);
+                    this.update(student.getId(), studentUpdate);
                 }
 
             }

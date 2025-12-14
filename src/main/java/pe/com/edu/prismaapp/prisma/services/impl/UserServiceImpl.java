@@ -5,7 +5,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import pe.com.edu.prismaapp.prisma.dto.UserDTO;
+import pe.com.edu.prismaapp.prisma.dto.UserApi;
 import pe.com.edu.prismaapp.prisma.entities.Role;
 import pe.com.edu.prismaapp.prisma.entities.User;
 import pe.com.edu.prismaapp.prisma.errorHandler.ResourceNotFoundException;
@@ -33,66 +33,51 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<UserDTO> findAll() {
+    public List<UserApi.Response> findAll() {
         List<User> users = userRepository.findAll();
-        List<UserDTO> userDTOs = new ArrayList<>();
-        for(User user : users){
-            UserDTO userDTO = new UserDTO();
-            userDTO.setId(user.getId());
-            userDTO.setName(user.getName());
-            userDTO.setEmail(user.getEmail());
-
-            userDTO.setActive(user.isActive());
-            userDTO.setAdmin(user.getRoles().stream().anyMatch(role -> role.getName().equals("ROLE_ADMIN")));
-            userDTO.setTutor(user.getRoles().stream().anyMatch(role -> role.getName().equals("ROLE_TUTOR")));
-
-            userDTOs.add(userDTO);
-        }
-
-        return userDTOs;
+        return users.stream().map(UserApi.Response::from).toList();
     }
 
     @Override
     @Transactional
-    public UserDTO save(UserDTO userDTO) {
-        User newUser = new User();
-        mapValues(userDTO, newUser);
-        userDTO.setId(newUser.getId());
-        return userDTO;
+    public UserApi.Response save(UserApi.Create userDTO) {
+        var user = new User();
+        return saveOrUpdate(user, userDTO.name(), userDTO.email(), userDTO.isActive(), userDTO.isAdmin(), userDTO.isTutor());
     }
 
     @Override
     @Transactional
-    public UserDTO update(Long idUser, UserDTO userDTO) {
-        User user = userRepository.findById(idUser)
+    public UserApi.Response update(Long idUser, UserApi.Update userDTO) {
+        var user = userRepository.findById(idUser)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con ID: " + idUser));
-        mapValues(userDTO, user);
-        return userDTO;
+        return saveOrUpdate(user, userDTO.name(), userDTO.email(), userDTO.isActive(), userDTO.isAdmin(), userDTO.isTutor());
     }
 
-    private void mapValues(UserDTO userDTO, User user) {
-        user.setName(userDTO.getName());
-        user.setEmail(userDTO.getEmail());
-        user.setActive(userDTO.isActive());
+    private UserApi.Response saveOrUpdate(User user, String name, String email, boolean active, boolean admin, boolean tutor) {
+        user.setName(name);
+        user.setEmail(email);
+        user.setActive(active);
 
-        List<Role> roles = new ArrayList<>();
-        if(userDTO.isAdmin()){
-            Role role = roleRepository.findByName("ROLE_ADMIN").orElseThrow(() -> new RuntimeException("Role not found"));
+        var roles = new ArrayList<Role>();
+        if(admin){
+            var role = roleRepository.findByName("ROLE_ADMIN").orElseThrow(() -> new RuntimeException("Role not found"));
             roles.add(role);
         }
-        if(userDTO.isTutor()){
-            Role role = roleRepository.findByName("ROLE_TUTOR").orElseThrow(() -> new RuntimeException("Role not found"));
+        if(tutor){
+            var role = roleRepository.findByName("ROLE_TUTOR").orElseThrow(() -> new RuntimeException("Role not found"));
             roles.add(role);
         }
 
         user.setRoles(roles);
-        userRepository.save(user);
+        user = userRepository.save(user);
+
+        return UserApi.Response.from(user);
     }
 
     @Override
     @Transactional
     public void delete(Long id) {
-        User user = userRepository.findById(id)
+        var user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con ID: " + id));
         studentStageUserService.deleteStudentStageUserByIdUser(user.getId());
         userRepository.delete(user);
@@ -104,17 +89,10 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public UserDTO getCurrentUser() {
-        UserDTO userDTO = new UserDTO();
+    public UserApi.CurrentUser getCurrentUser() {
         Authentication authenticationToken = SecurityContextHolder.getContext().getAuthentication();
-        User user =  userRepository.findByEmail(authenticationToken.getName()).orElseThrow(EntityNotFoundException::new);
-        userDTO.setId(user.getId());
-        userDTO.setName(user.getName());
-        userDTO.setEmail(user.getEmail());
-        userDTO.setActive(user.isActive());
-        userDTO.setPicture(user.getPicture());
-
-        return userDTO;
+        var user =  userRepository.findByEmail(authenticationToken.getName()).orElseThrow(EntityNotFoundException::new);
+        return new UserApi.CurrentUser(user.getId(),user.getName(),user.getEmail(),user.isActive(),user.getPicture());
 
     }
 

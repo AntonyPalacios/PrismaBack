@@ -167,31 +167,21 @@ public class ExamServiceImpl implements ExamService {
     private StudentStage getStudentStage(AreaEnum area, int tutorColumnIndex, String name, Long stageId, Row row, DataFormatter dataFormatter, FormulaEvaluator evaluator) {
         Student student = studentService.findByDniOrName(null, name);
         String tutor = dataFormatter.formatCellValue(row.getCell(tutorColumnIndex), evaluator).trim();
-        System.out.println(student.getName());
+
         Optional<User> optionalTutor = userService.findTutorByName(tutor);
-        Long tutorId = 0L;
-        if (optionalTutor.isPresent()) {
-            tutorId = optionalTutor.get().getId();
-        }
-        StudentDTO studentDTO = new StudentDTO();
+        Long tutorId = optionalTutor.isPresent() ? optionalTutor.get().getId() : 0L;
+
+        StudentApi.Response studentDTO = null;
         if (student == null) {
             //crear alumno
-            studentDTO.setDni("");
-            studentDTO.setName(name);
-            studentDTO.setStageId(stageId);
-            studentDTO.setActive(true);
             Optional<Area> optionalArea = areaService.findAreaByName(area.name());
-            studentDTO.setTutorId(tutorId);
+            Long areaId = optionalArea.isPresent() ? optionalArea.get().getId() : 0L;
+            StudentApi.Create studentCreate = new StudentApi.Create(name, "", "", "", tutorId, areaId, stageId, true);
 
-            if (optionalArea.isPresent()) {
-                studentDTO.setAreaId(optionalArea.get().getId());
-            } else {
-                studentDTO.setAreaId(0L);
-            }
-            studentDTO = studentService.save(studentDTO);
+            studentDTO = studentService.save(studentCreate);
         }
         //por cada registro, buscar al alumno de la etapa y asignarlo a texamresult
-        Long studentId = student == null ? studentDTO.getId() : student.getId();
+        Long studentId = student == null ? studentDTO.id() : student.getId();
         StudentStage studentStage = studentStageService.getStudentStage(stageId,studentId);
 
         if(student != null){

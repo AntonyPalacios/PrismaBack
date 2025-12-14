@@ -2,7 +2,7 @@ package pe.com.edu.prismaapp.prisma.services.impl;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import pe.com.edu.prismaapp.prisma.dto.StudentDTO;
+import pe.com.edu.prismaapp.prisma.dto.StudentApi;
 import pe.com.edu.prismaapp.prisma.entities.Stage;
 import pe.com.edu.prismaapp.prisma.entities.Student;
 import pe.com.edu.prismaapp.prisma.entities.StudentStage;
@@ -28,18 +28,20 @@ public class StudentStageServiceImpl implements StudentStageService {
     }
 
     @Override
+    @Transactional
     public StudentStage saveStudent(Student student, Stage stage, boolean active) {
         StudentStage studentStage = new StudentStage();
         studentStage.setStudent(student);
         studentStage.setStage(stage);
         studentStage.setActive(active);
-        return studentStageRepository.save(studentStage);
+        return studentStageRepository.saveAndFlush(studentStage);
     }
 
     @Override
-    public StudentStage updateStudent(Student student, StudentDTO studentDTO) {
-        StudentStage studentStage = studentStageRepository.findByStudent_IdAndStage_Id(student.getId(), studentDTO.getStageId());
-        studentStage.setActive(studentDTO.isActive());
+    @Transactional
+    public StudentStage updateStudent(StudentApi.Update student) {
+        StudentStage studentStage = studentStageRepository.findByStudent_IdAndStage_Id(student.id(), student.stageId());
+        studentStage.setActive(student.isActive());
         studentStageRepository.save(studentStage);
         return studentStage;
     }
