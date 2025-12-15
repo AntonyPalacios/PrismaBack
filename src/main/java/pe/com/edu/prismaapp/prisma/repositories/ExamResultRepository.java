@@ -2,8 +2,9 @@ package pe.com.edu.prismaapp.prisma.repositories;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
-import pe.com.edu.prismaapp.prisma.dto.ExamResultDTO;
-import pe.com.edu.prismaapp.prisma.dto.ExamScoreDTO;
+import pe.com.edu.prismaapp.prisma.dto.exam.ExamEffectiveCourse;
+import pe.com.edu.prismaapp.prisma.dto.exam.ExamEffectiveSection;
+import pe.com.edu.prismaapp.prisma.dto.exam.ExamResultRecord;
 import pe.com.edu.prismaapp.prisma.entities.ExamResult;
 
 import java.util.List;
@@ -13,7 +14,7 @@ public interface ExamResultRepository extends JpaRepository<ExamResult, Long> {
     Optional<ExamResult> findExamResultByExam_IdAndStudentStage_Id(Long examId, Long studentStageId);
 
 
-    @Query("SELECT new pe.com.edu.prismaapp.prisma.dto.ExamResultDTO(A.exam.id, A.area.id, C.name, A.merit, A.totalScore) " +
+    @Query("SELECT new pe.com.edu.prismaapp.prisma.dto.exam.ExamResultRecord(A.exam.id, A.area.id, C.name, A.merit, A.totalScore) " +
             "FROM ExamResult A " +
             "INNER JOIN A.studentStage B " +
             "INNER JOIN A.exam C " +
@@ -21,14 +22,14 @@ public interface ExamResultRepository extends JpaRepository<ExamResult, Long> {
             "INNER JOIN D.cycle E " +
             "WHERE B.student.id = :studentId AND E.id = :cycleId " +
             "ORDER BY C.date ")
-    List<ExamResultDTO> listExamResultsByStudent(Long studentId, Long cycleId);
+    List<ExamResultRecord> listExamResultsByStudent(Long studentId, Long cycleId);
 
     @Query("SELECT min(totalScore), max(totalScore), avg(totalScore) " +
             "from ExamResult " +
             "WHERE exam.id = :examId and area.id= :areaId ")
     List<Object[]> getMinMaxAndAvgByExamByArea(Long examId, Long areaId);
 
-    @Query("SELECT new pe.com.edu.prismaapp.prisma.dto.ExamScoreDTO(C.name, sum(F.courseCorrect), sum(F.courseIncorrect)) " +
+    @Query("SELECT new pe.com.edu.prismaapp.prisma.dto.exam.ExamEffectiveSection(C.name, sum(F.courseCorrect), sum(F.courseIncorrect)) " +
             "FROM ExamCourseResult F " +
             "INNER JOIN F.examResult A " +
             "INNER JOIN A.studentStage B " +
@@ -38,16 +39,16 @@ public interface ExamResultRepository extends JpaRepository<ExamResult, Long> {
             "WHERE B.student.id = :studentId AND E.id = :cycleId AND F.course.parentCourse.id = :courseId " +
             "GROUP BY C.name, C.date " +
             "ORDER BY C.date ")
-    List<ExamScoreDTO> listExamEffectiveByStudent(Long studentId, Long cycleId, Long courseId);
+    List<ExamEffectiveSection> listExamEffectiveByStudent(Long studentId, Long cycleId, Long courseId);
 
-    @Query("SELECT new pe.com.edu.prismaapp.prisma.dto.ExamScoreDTO(C.name, F.courseCorrect, F.courseIncorrect) " +
+    @Query("SELECT new pe.com.edu.prismaapp.prisma.dto.exam.ExamEffectiveCourse(C.name, F.courseCorrect, F.courseIncorrect) " +
             "FROM ExamCourseResult F " +
             "INNER JOIN F.examResult A " +
             "INNER JOIN A.studentStage B " +
             "INNER JOIN A.exam C " +
             "WHERE B.student.id = :studentId AND F.course.id = :courseId AND A.exam.id = :examId " +
             "ORDER BY C.date ")
-    List<ExamScoreDTO> listExamEffectiveByCourseByStudent(Long studentId, Long courseId, Long examId);
+    List<ExamEffectiveCourse> listExamEffectiveByCourseByStudent(Long studentId, Long courseId, Long examId);
 
     @Query(value = "SELECT d.id_exam, min(t.sum_correct), min(t.sum_incorrect) " +
             "FROM texam d " +

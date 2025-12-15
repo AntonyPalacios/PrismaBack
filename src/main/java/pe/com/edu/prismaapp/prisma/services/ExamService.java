@@ -2,27 +2,26 @@ package pe.com.edu.prismaapp.prisma.services;
 
 import jakarta.validation.Valid;
 import org.springframework.web.multipart.MultipartFile;
-import pe.com.edu.prismaapp.prisma.dto.ExamCourseResultDTO;
-import pe.com.edu.prismaapp.prisma.dto.ExamDTO;
-import pe.com.edu.prismaapp.prisma.dto.ExamDataSummary;
-import pe.com.edu.prismaapp.prisma.dto.ExamScoreDTO;
+import pe.com.edu.prismaapp.prisma.dto.exam.ExamApi;
+import pe.com.edu.prismaapp.prisma.dto.exam.ExamCourseResultDTO;
+import pe.com.edu.prismaapp.prisma.dto.exam.ExamDataSummary;
 import pe.com.edu.prismaapp.prisma.util.AreaEnum;
 
 import java.io.IOException;
 import java.util.List;
 
 public interface ExamService {
-    List<ExamDTO> getExams(Long cycleId,Long stageId);
+    List<ExamApi.ExamList> getExams(Long cycleId, Long stageId);
 
-    ExamDTO save(@Valid ExamDTO exam);
+    ExamApi.Response save(@Valid ExamApi.Create exam);
 
-    ExamDTO update(Long id, ExamDTO examDTO);
+    ExamApi.Response update(Long id, ExamApi.Update examDTO);
 
     void importResults(Long examId, AreaEnum area, MultipartFile file) throws IOException;
 
-    List<ExamScoreDTO> getExamResultsByStudent(Long idStudent, Long idCycle);
+    List<ExamApi.ExamScore> getExamResultsByStudent(Long idStudent, Long idCycle);
 
-    List<ExamScoreDTO> getExamEffectiveByStudent(Long idStudent, Long idCycle);
+    List<ExamApi.ExamEffectiveSectionResponse> getExamEffectiveByStudent(Long idStudent, Long idCycle);
 
     List<ExamCourseResultDTO> getExamEffectiveByCourseByStudent(Long idStudent, Long idCycle);
 
