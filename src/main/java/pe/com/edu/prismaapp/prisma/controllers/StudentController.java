@@ -1,10 +1,8 @@
 package pe.com.edu.prismaapp.prisma.controllers;
 
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
-import org.springframework.core.io.ResourceLoader;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -12,7 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import pe.com.edu.prismaapp.prisma.dto.StudentDTO;
+import pe.com.edu.prismaapp.prisma.dto.StudentApi;
 import pe.com.edu.prismaapp.prisma.services.StudentService;
 
 import java.io.IOException;
@@ -25,38 +23,35 @@ public class StudentController {
 
     private final StudentService studentService;
 
-    @Autowired
-    private ResourceLoader resourceLoader;
-
     public StudentController(StudentService studentService) {
         this.studentService = studentService;
     }
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN','TUTOR')")
-    ResponseEntity<StudentDTO> createStudent(@Valid @RequestBody StudentDTO studentDTO) {
-        StudentDTO c = studentService.save(studentDTO);
+    ResponseEntity<StudentApi.Response> createStudent(@Valid @RequestBody StudentApi.Create studentDTO) {
+        var c = studentService.save(studentDTO);
         return ResponseEntity.status(HttpStatus.OK).body(c);
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or " +
                   "(hasRole('TUTOR') and @studentServiceImpl.isStudentAssignedToTutor(#id,authentication.principal.id))")
-    ResponseEntity<StudentDTO> updateStudent(@PathVariable Long id,
-                                             @Valid @RequestBody StudentDTO studentDTO) {
-        StudentDTO c = studentService.update(id, studentDTO);
+    ResponseEntity<StudentApi.Response> updateStudent(@PathVariable Long id,
+                                             @Valid @RequestBody StudentApi.Update studentDTO) {
+        var c = studentService.update(id, studentDTO);
         return ResponseEntity.status(HttpStatus.OK).body(c);
     }
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    ResponseEntity<Object> deleteStudent(@PathVariable Long id) {
+    ResponseEntity<Void> deleteStudent(@PathVariable Long id) {
         studentService.delete(id);
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping
-    ResponseEntity<List<StudentDTO>> getAllStudentsByStage(@RequestParam(name = "stageId", required = false) Optional<Long> stageId) {
-        List<StudentDTO> students = studentService.findAll(stageId);
+    ResponseEntity<List<StudentApi.Response>> getAllStudentsByStage(@RequestParam(name = "stageId", required = false) Optional<Long> stageId) {
+        var students = studentService.findAll(stageId);
         return ResponseEntity.status(HttpStatus.OK).body(students);
     }
 

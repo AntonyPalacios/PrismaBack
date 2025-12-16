@@ -1,21 +1,23 @@
 package pe.com.edu.prismaapp.prisma.services;
 
-import pe.com.edu.prismaapp.prisma.dto.UserDTO;
+import pe.com.edu.prismaapp.prisma.dto.UserApi;
 import pe.com.edu.prismaapp.prisma.entities.User;
 
 import java.util.List;
 import java.util.Optional;
 
 public interface UserService {
-    UserDTO save(UserDTO userDTO);
-    UserDTO update(Long id, UserDTO userDTO);
+    UserApi.Response save(UserApi.Create userDTO);
+
+    UserApi.Response update(Long id, UserApi.Update userDTO);
+
     void delete(Long id);
 
-    List<UserDTO> findAll();
+    List<UserApi.Response> findAll();
 
     Optional<User> findTutorById(Long id);
 
-    UserDTO getCurrentUser();
+    UserApi.CurrentUser getCurrentUser();
 
     Optional<User> findTutorByName(String name);
 }

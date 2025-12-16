@@ -1,17 +1,17 @@
 package pe.com.edu.prismaapp.prisma.services;
 
-import pe.com.edu.prismaapp.prisma.dto.CycleDTO;
+import pe.com.edu.prismaapp.prisma.dto.CycleApi;
 
 import java.util.List;
 
 public interface CycleService {
 
-    CycleDTO save(CycleDTO cycleDto);
-    List<CycleDTO> findAll();
+    CycleApi.Response save(CycleApi.Create cycleDto);
+    List<CycleApi.Response> findAll();
 
-    CycleDTO update(Long id, CycleDTO cycle);
+    CycleApi.Response update(Long id, CycleApi.Update cycle);
 
     void delete(Long id);
 
-    CycleDTO getCurrentCycle();
+    CycleApi.Response getCurrentCycle();
 }

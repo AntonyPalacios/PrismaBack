@@ -1,4 +1,4 @@
-package pe.com.edu.prismaapp.prisma.dto;
+package pe.com.edu.prismaapp.prisma.dto.exam;
 
 import lombok.Data;
 

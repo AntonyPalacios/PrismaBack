@@ -1,7 +1,7 @@
 package pe.com.edu.prismaapp.prisma.services;
 
 import org.springframework.web.multipart.MultipartFile;
-import pe.com.edu.prismaapp.prisma.dto.StudentDTO;
+import pe.com.edu.prismaapp.prisma.dto.StudentApi;
 import pe.com.edu.prismaapp.prisma.entities.Student;
 
 import java.util.List;
@@ -9,10 +9,11 @@ import java.util.Optional;
 
 public interface StudentService {
 
-    StudentDTO save(StudentDTO studentDTO);
-    List<StudentDTO> findAll(Optional<Long> stageId);
+    StudentApi.Response save(StudentApi.Create studentDTO);
 
-    StudentDTO update(Long id, StudentDTO studentDTO);
+    List<StudentApi.Response> findAll(Optional<Long> stageId);
+
+    StudentApi.Response update(Long id, StudentApi.Update studentDTO);
 
     void delete(Long id);
 

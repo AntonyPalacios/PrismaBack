@@ -1,12 +1,15 @@
 package pe.com.edu.prismaapp.prisma.services.impl;
 
+import org.apache.commons.lang3.function.TriConsumer;
 import org.apache.poi.ss.usermodel.*;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import pe.com.edu.prismaapp.prisma.dto.*;
+import pe.com.edu.prismaapp.prisma.dto.exam.*;
 import pe.com.edu.prismaapp.prisma.entities.*;
 import pe.com.edu.prismaapp.prisma.errorHandler.ResourceNotFoundException;
 import pe.com.edu.prismaapp.prisma.repositories.CourseRepository;
@@ -15,6 +18,7 @@ import pe.com.edu.prismaapp.prisma.repositories.ExamRepository;
 import pe.com.edu.prismaapp.prisma.repositories.ExamResultRepository;
 import pe.com.edu.prismaapp.prisma.services.*;
 import pe.com.edu.prismaapp.prisma.util.AreaEnum;
+import pe.com.edu.prismaapp.prisma.util.ExamColumnsUtil;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -35,10 +39,19 @@ public class ExamServiceImpl implements ExamService {
     private final ExamCourseResultRepository examCourseResultRepository;
     private final AreaService areaService;
     private final UserService userService;
+    private FormulaEvaluator evaluator = null;
+    private final ExamColumnsUtil.CourseColumns courseColumns;
+    private final ExamColumnsUtil.AreaConfig arquiConfig;
+    private final ExamColumnsUtil.AreaConfig cienciasConfig;
+    private final ExamColumnsUtil.AreaConfig letrasConfig;
 
-    public ExamServiceImpl(ExamRepository examRepository, StageService stageService, StudentService studentService, StudentStageService studentStageService,
-                           ExamResultRepository examResultRepository, CourseRepository courseRepository,
-                           ExamCourseResultRepository examCourseResultRepository, AreaService areaService, UserService userService) {
+    public ExamServiceImpl(ExamRepository examRepository, StageService stageService, StudentService studentService,
+                           StudentStageService studentStageService, ExamResultRepository examResultRepository,
+                           CourseRepository courseRepository, ExamCourseResultRepository examCourseResultRepository,
+                           AreaService areaService, UserService userService, ExamColumnsUtil.CourseColumns courseColumns,
+                           @Qualifier("arqui") ExamColumnsUtil.AreaConfig arquiConfig,
+                           @Qualifier("ciencias") ExamColumnsUtil.AreaConfig cienciasConfig,
+                           @Qualifier("letras") ExamColumnsUtil.AreaConfig letrasConfig) {
         this.examRepository = examRepository;
         this.stageService = stageService;
         this.studentService = studentService;
@@ -48,12 +61,16 @@ public class ExamServiceImpl implements ExamService {
         this.examCourseResultRepository = examCourseResultRepository;
         this.areaService = areaService;
         this.userService = userService;
+        this.courseColumns = courseColumns;
+        this.arquiConfig = arquiConfig;
+        this.cienciasConfig = cienciasConfig;
+        this.letrasConfig = letrasConfig;
     }
 
     @Override
-    public List<ExamDTO> getExams(Long cycleId, Long stageId) {
+    public List<ExamApi.ExamList> getExams(Long cycleId, Long stageId) {
         List<Exam> exams = new ArrayList<>();
-        List<ExamDTO> examsDto = new ArrayList<>();
+        var examsDto = new ArrayList<ExamApi.ExamList>();
         if (cycleId == null && stageId == null) {
             return examsDto;
         }
@@ -68,47 +85,42 @@ public class ExamServiceImpl implements ExamService {
             exams = examRepository.findAllByStage_Cycle_IdOrderByDateAsc(cycleId);
         }
 
-        for (Exam exam : exams) {
-            ExamDTO examDto = new ExamDTO();
-            examDto.setId(exam.getId());
-            examDto.setDate(exam.getDate());
-            examDto.setName(exam.getName());
-            examDto.setStage(exam.getStage().getName());
-            examDto.setStageId(exam.getStage().getId());
-            examDto.setCycle(exam.getStage().getCycle().getName());
-            examsDto.add(examDto);
-        }
+        return exams.stream().map(exam -> new ExamApi.ExamList(
+                exam.getId(),
+                exam.getName(),
+                exam.getStage().getId(), exam.getDate(),
+                exam.getStage().getCycle().getName(),
+                exam.getStage().getName())
+        ).toList();
 
-        return examsDto;
     }
 
     @Override
     @Transactional
-    public ExamDTO save(ExamDTO examDTO) {
+    public ExamApi.Response save(ExamApi.Create examDTO) {
         Exam exam = new Exam();
-        exam.setName(examDTO.getName());
-        exam.setDate(examDTO.getDate());
-        if (examDTO.getStageId() != null) {
-            Stage stage = stageService.getStageById(examDTO.getStageId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Etapa no encontrada con ID: " + examDTO.getStageId()));
+        exam.setName(examDTO.name());
+        exam.setDate(examDTO.date());
+        if (examDTO.stageId() != null) {
+            Stage stage = stageService.getStageById(examDTO.stageId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Examen no encontrado con ID: " + examDTO.stageId()));
             exam.setStage(stage);
         } else {
             throw new RuntimeException("Seleccione etapa");
         }
         examRepository.save(exam);
-        examDTO.setId(exam.getId());
-        return examDTO;
+        return ExamApi.Response.from(exam);
     }
 
     @Override
     @Transactional
-    public ExamDTO update(Long id, ExamDTO examDTO) {
+    public ExamApi.Response update(Long id, ExamApi.Update examDTO) {
         Exam exam = examRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Etapa no encontrada con ID: " + examDTO.getStageId()));
-        exam.setName(examDTO.getName());
-        exam.setDate(examDTO.getDate());
+                .orElseThrow(() -> new ResourceNotFoundException("Examen no encontrado con ID: " + examDTO.id()));
+        exam.setName(examDTO.name());
+        exam.setDate(examDTO.date());
         examRepository.save(exam);
-        return examDTO;
+        return ExamApi.Response.from(exam);
     }
 
     @Override
@@ -120,11 +132,14 @@ public class ExamServiceImpl implements ExamService {
         Long stageId = exam.getStage().getId();
         ExamResult examResult;
 
+        TriConsumer<ExamResult, Row, DataFormatter> processor;
+        ExamColumnsUtil.AreaConfig config;
+
         //abrir excel y buscar página
         try (InputStream inputStream = file.getInputStream()) {
             Workbook workbook = WorkbookFactory.create(inputStream);
             DataFormatter dataFormatter = new DataFormatter();
-            FormulaEvaluator evaluator = workbook.getCreationHelper().createFormulaEvaluator();
+            this.evaluator = workbook.getCreationHelper().createFormulaEvaluator();
             Sheet sheet = workbook.getSheet("EVA");
             //leer registros según area
             for (Row row : sheet) {
@@ -140,67 +155,56 @@ public class ExamServiceImpl implements ExamService {
 
                 //aqui es donde se diferencia por cada area
                 switch (area) {
-                    case ARQUITECTURA: {
-                        StudentStage studentStage = getStudentStage(area, 32, name, stageId, row, dataFormatter, evaluator);
-                        examResult = saveExamResult(28, 29, 30, exam, studentStage, row, area, dataFormatter, evaluator);
-                        procesarExamArqui(examResult, row, dataFormatter, evaluator);
-                        break;
+                    case ARQUITECTURA -> {
+                        config = arquiConfig;
+                        processor = this::procesarExamArqui;
                     }
-                    case CIENCIAS: {
-                        StudentStage studentStage = getStudentStage(area, 35, name, stageId, row, dataFormatter, evaluator);
-                        examResult = saveExamResult(31, 32, 33, exam, studentStage, row, area, dataFormatter, evaluator);
-                        procesarExamCiencias(examResult, row, dataFormatter, evaluator);
-                        break;
+                    case CIENCIAS -> {
+                        config = cienciasConfig;
+                        processor = this::procesarExamCiencias;
                     }
-                    case LETRAS: {
-                        StudentStage studentStage = getStudentStage(area, 38, name, stageId, row, dataFormatter, evaluator);
-                        examResult = saveExamResult(34, 35, 36, exam, studentStage, row, area, dataFormatter, evaluator);
-                        procesarExamLetras(examResult, row, dataFormatter, evaluator);
-                        break;
+                    case LETRAS -> {
+                        config = letrasConfig;
+                        processor = this::procesarExamLetras;
                     }
+                    default -> throw new IllegalArgumentException("Area no soportada: " + area);
                 }
+                var studentStage = getStudentStage(area, config.tutorCol(), name, stageId, row, dataFormatter, evaluator);
+                examResult = saveExamResult(config.goodCol(), config.badCol(), config.scoreCol(), exam, studentStage, row, area, dataFormatter, evaluator);
+                processor.accept(examResult, row, dataFormatter);
             }
         }
 
     }
 
+
     private StudentStage getStudentStage(AreaEnum area, int tutorColumnIndex, String name, Long stageId, Row row, DataFormatter dataFormatter, FormulaEvaluator evaluator) {
         Student student = studentService.findByDniOrName(null, name);
         String tutor = dataFormatter.formatCellValue(row.getCell(tutorColumnIndex), evaluator).trim();
-        System.out.println(student.getName());
+
         Optional<User> optionalTutor = userService.findTutorByName(tutor);
-        Long tutorId = 0L;
-        if (optionalTutor.isPresent()) {
-            tutorId = optionalTutor.get().getId();
-        }
-        StudentDTO studentDTO = new StudentDTO();
+        Long tutorId = optionalTutor.isPresent() ? optionalTutor.get().getId() : 0L;
+
+        StudentApi.Response studentDTO = null;
         if (student == null) {
             //crear alumno
-            studentDTO.setDni("");
-            studentDTO.setName(name);
-            studentDTO.setStageId(stageId);
-            studentDTO.setActive(true);
             Optional<Area> optionalArea = areaService.findAreaByName(area.name());
-            studentDTO.setTutorId(tutorId);
+            Long areaId = optionalArea.isPresent() ? optionalArea.get().getId() : 0L;
+            StudentApi.Create studentCreate = new StudentApi.Create(name, "", "", "", tutorId, areaId, stageId, true);
 
-            if (optionalArea.isPresent()) {
-                studentDTO.setAreaId(optionalArea.get().getId());
-            } else {
-                studentDTO.setAreaId(0L);
-            }
-            studentDTO = studentService.save(studentDTO);
+            studentDTO = studentService.save(studentCreate);
         }
         //por cada registro, buscar al alumno de la etapa y asignarlo a texamresult
-        Long studentId = student == null ? studentDTO.getId() : student.getId();
-        StudentStage studentStage = studentStageService.getStudentStage(stageId,studentId);
+        Long studentId = student == null ? studentDTO.id() : student.getId();
+        StudentStage studentStage = studentStageService.getStudentStage(stageId, studentId);
 
-        if(student != null){
+        if (student != null) {
             //si estamos en una nueva etapa, se crean los registros
-            if(studentStage == null) {
-                studentStage = saveStudentStage(studentId,stageId);
+            if (studentStage == null) {
+                studentStage = saveStudentStage(studentId, stageId);
                 //studentStage = studentStageService.getStudentStage(stageId,studentId);
             }
-            studentStageService.validateStudentTutor(studentStage.getId(),tutorId);
+            studentStageService.validateStudentTutor(studentStage.getId(), tutorId);
         }
         return studentStage;
     }
@@ -208,13 +212,14 @@ public class ExamServiceImpl implements ExamService {
     private StudentStage saveStudentStage(Long studentId, Long stageId) {
         Student student = studentService.findById(studentId);
         Optional<Stage> optStage = stageService.getStageById(stageId);
-        return studentStageService.saveStudent(student,optStage.get(),true);
+        return studentStageService.saveStudent(student, optStage.get(), true);
     }
 
 
     private ExamResult saveExamResult(int i, int j, int k,
                                       Exam exam, StudentStage studentStage, Row row, AreaEnum areaEnum,
                                       DataFormatter dataFormatter, FormulaEvaluator evaluator) {
+
         int merit = Integer.parseInt(dataFormatter.formatCellValue(row.getCell(1), evaluator).trim());
         int totalCorrect = Integer.parseInt(dataFormatter.formatCellValue(row.getCell(i), evaluator).trim());
         int totalIncorrect = Integer.parseInt(dataFormatter.formatCellValue(row.getCell(j), evaluator).trim());
@@ -241,33 +246,56 @@ public class ExamServiceImpl implements ExamService {
         return examResult;
     }
 
-    private void procesarExamArqui(ExamResult examResult, Row row,
-                                   DataFormatter dataFormatter, FormulaEvaluator evaluator) {
+    private void procesarExamArqui(ExamResult examResult, Row row, DataFormatter dataFormatter) {
         if (examResult == null) {
             return;
         }
 
         //leer lectura
-        saveExamCourseResult("LECT", 7, 8, 9, examResult, row, dataFormatter, evaluator);
+        saveExamCourseResult("LECT",
+                courseColumns.lectCorrect(),
+                courseColumns.lectIncorrect(),
+                courseColumns.lectBlank(),
+                examResult, row, dataFormatter, evaluator);
 
         //leer mate
-        saveExamCourseResult("NYO", 14, 15, 16, examResult, row, dataFormatter, evaluator);
-        saveExamCourseResult("X", 17, 18, 19, examResult, row, dataFormatter, evaluator);
-        saveExamCourseResult("GEO", 20, 21, 22, examResult, row, dataFormatter, evaluator);
+        saveExamCourseResult("NYO",
+                courseColumns.nyoCorrect(),
+                courseColumns.nyoIncorrect(),
+                courseColumns.nyoBlank(),
+                examResult, row, dataFormatter, evaluator);
+        saveExamCourseResult("X",
+                courseColumns.xCorrect(),
+                courseColumns.xIncorrect(),
+                courseColumns.xBlank(),
+                examResult, row, dataFormatter, evaluator);
+        saveExamCourseResult("GEO",
+                courseColumns.geoCorrect(),
+                courseColumns.geoIncorrect(),
+                courseColumns.geoBlank(),
+                examResult, row, dataFormatter, evaluator);
 
     }
 
     private void procesarExamCiencias(ExamResult examResult, Row row,
-                                      DataFormatter dataFormatter, FormulaEvaluator evaluator) {
+                                      DataFormatter dataFormatter) {
 
-        procesarExamArqui(examResult, row, dataFormatter, evaluator);
-        saveExamCourseResult("TRIGO", 23, 24, 25, examResult, row, dataFormatter, evaluator);
+        procesarExamArqui(examResult, row, dataFormatter);
+        saveExamCourseResult("TRIGO",
+                courseColumns.trigoCorrect(),
+                courseColumns.trigoIncorrect(),
+                courseColumns.trigoBlank(),
+                examResult, row, dataFormatter, evaluator);
     }
 
     private void procesarExamLetras(ExamResult examResult, Row row,
-                                    DataFormatter dataFormatter, FormulaEvaluator evaluator) {
-        procesarExamCiencias(examResult, row, dataFormatter, evaluator);
-        saveExamCourseResult("EST", 26, 27, 28, examResult, row, dataFormatter, evaluator);
+                                    DataFormatter dataFormatter) {
+        procesarExamCiencias(examResult, row, dataFormatter);
+        saveExamCourseResult("EST",
+                courseColumns.estCorrect(),
+                courseColumns.estIncorrect(),
+                courseColumns.estBlank(),
+                examResult, row, dataFormatter, evaluator);
     }
 
     private void saveExamCourseResult(String courseAbbreviation, int i, int j, int k,
@@ -297,42 +325,43 @@ public class ExamServiceImpl implements ExamService {
     }
 
     @Override
-    public List<ExamScoreDTO> getExamResultsByStudent(Long studentId, Long cycleId) {
-        List<ExamResultDTO> examResults = examResultRepository.listExamResultsByStudent(studentId, cycleId);
-        List<ExamScoreDTO> examScoreDTOs = new ArrayList<>();
-        for (ExamResultDTO examResultDTO : examResults) {
-            ExamScoreDTO examScoreDTO = new ExamScoreDTO();
-            Long examId = examResultDTO.getExamId();
-            Long areaId = examResultDTO.getAreaId();
+    public List<ExamApi.ExamScore> getExamResultsByStudent(Long studentId, Long cycleId) {
+        var examResults = examResultRepository.listExamResultsByStudent(studentId, cycleId);
+        return examResults.stream().map(e -> {
+            var examId = e.examId();
+            var areaId = e.areaId();
             List<Object[]> data = examResultRepository.getMinMaxAndAvgByExamByArea(examId, areaId);
-
-            examScoreDTO.setName(examResultDTO.getName());
-            examScoreDTO.setMerit(examResultDTO.getMerit());
-            examScoreDTO.setScore(examResultDTO.getTotalScore());
-            examScoreDTO.setMin((Double) data.get(0)[0]);
-            examScoreDTO.setMax((Double) data.get(0)[1]);
-            examScoreDTO.setAvg((Double) data.get(0)[2]);
-
-            examScoreDTOs.add(examScoreDTO);
-        }
-        return examScoreDTOs;
+            return new ExamApi.ExamScore(
+                    e.name(),
+                    e.totalScore(),
+                    (Double) data.get(0)[0],
+                    (Double) data.get(0)[1],
+                    (Double) data.get(0)[2],
+                    e.merit()
+            );
+        }).toList();
     }
 
     @Override
-    public List<ExamScoreDTO> getExamEffectiveByStudent(Long idStudent, Long idCycle) {
-        List<ExamScoreDTO> examScoreDTOs = new ArrayList<>();
+    public List<ExamApi.ExamEffectiveSectionResponse> getExamEffectiveByStudent(Long idStudent, Long idCycle) {
+        List<ExamApi.ExamEffectiveSectionResponse> examScoreDTOs = new ArrayList<>();
         //sacar buenas y malas de lectura y matemática
-        List<ExamScoreDTO> lectura = examResultRepository.listExamEffectiveByStudent(idStudent, idCycle, 1L);
-        List<ExamScoreDTO> mate = examResultRepository.listExamEffectiveByStudent(idStudent, idCycle, 2L);
+        List<ExamEffectiveSection> lectura =
+                examResultRepository.listExamEffectiveByStudent(idStudent, idCycle, 1L);
 
+        List<ExamEffectiveSection> mate =
+                examResultRepository.listExamEffectiveByStudent(idStudent, idCycle, 2L);
+        // TODO: verificar forma de unir ambos streams en tuplas
         if (lectura.size() == mate.size()) {
             for (int i = 0; i < lectura.size(); i++) {
-                ExamScoreDTO examScoreDTO = new ExamScoreDTO();
-                examScoreDTO.setName(lectura.get(i).getName());
-                examScoreDTO.setTotalLectCorrect(lectura.get(i).getTotalCorrect());
-                examScoreDTO.setTotalLectIncorrect(lectura.get(i).getTotalIncorrect());
-                examScoreDTO.setTotalMateCorrect(mate.get(i).getTotalCorrect());
-                examScoreDTO.setTotalMateIncorrect(mate.get(i).getTotalIncorrect());
+                ExamApi.ExamEffectiveSectionResponse examScoreDTO
+                        = new ExamApi.ExamEffectiveSectionResponse(
+                        lectura.get(i).name(),
+                        lectura.get(i).totalCorrect().intValue(),
+                        lectura.get(i).totalIncorrect().intValue(),
+                        mate.get(i).totalCorrect().intValue(),
+                        mate.get(i).totalIncorrect().intValue()
+                );
                 examScoreDTOs.add(examScoreDTO);
             }
             return examScoreDTOs;
@@ -341,58 +370,6 @@ public class ExamServiceImpl implements ExamService {
 
     }
 
-    /*@Override
-    public List<ExamCourseResultDTO> getExamEffectiveByCourseByStudent(Long idStudent, Long idCycle) {
-        List<ExamCourseResultDTO> examCourseResultDTOS = new ArrayList<>();
-        Course lect = courseRepository.findByAbbreviationAndParentCourseIsNotNull("LECT");
-        Course nyo = courseRepository.findByAbbreviationAndParentCourseIsNotNull("NYO");
-        Course x = courseRepository.findByAbbreviationAndParentCourseIsNotNull("X");
-        Course geo = courseRepository.findByAbbreviationAndParentCourseIsNotNull("GEO");
-        Course trigo = courseRepository.findByAbbreviationAndParentCourseIsNotNull("TRIGO");
-        Course est = courseRepository.findByAbbreviationAndParentCourseIsNotNull("EST");
-
-        //sacar buenas y malas de lectura y matemática
-        List<ExamScoreDTO> lectura = examResultRepository.listExamEffectiveByCourseByStudent(idStudent, idCycle, lect.getId());
-        List<ExamScoreDTO> nyoExam = examResultRepository.listExamEffectiveByCourseByStudent(idStudent, idCycle, nyo.getId());
-        List<ExamScoreDTO> xExam = examResultRepository.listExamEffectiveByCourseByStudent(idStudent, idCycle, x.getId());
-        List<ExamScoreDTO> geoExam = examResultRepository.listExamEffectiveByCourseByStudent(idStudent, idCycle, geo.getId());
-        List<ExamScoreDTO> trigoExam = examResultRepository.listExamEffectiveByCourseByStudent(idStudent, idCycle, trigo.getId());
-        List<ExamScoreDTO> estExam = examResultRepository.listExamEffectiveByCourseByStudent(idStudent, idCycle, est.getId());
-
-
-        for (int i = 0; i < lectura.size(); i++) {
-            ExamCourseResultDTO examScoreDTO = new ExamCourseResultDTO();
-            examScoreDTO.setName(lectura.get(i).getName());
-
-            examScoreDTO.setLectCorrect(lectura.get(i).getTotalCorrect());
-            examScoreDTO.setLectIncorrect(lectura.get(i).getTotalIncorrect());
-
-            examScoreDTO.setNyoCorrect(nyoExam.get(i).getTotalCorrect());
-            examScoreDTO.setNyoIncorrect(nyoExam.get(i).getTotalIncorrect());
-
-            examScoreDTO.setXCorrect(xExam.get(i).getTotalCorrect());
-            examScoreDTO.setXIncorrect(xExam.get(i).getTotalIncorrect());
-
-            examScoreDTO.setGeoCorrect(geoExam.get(i).getTotalCorrect());
-            examScoreDTO.setGeoIncorrect(geoExam.get(i).getTotalIncorrect());
-
-            if(!trigoExam.isEmpty()){
-                examScoreDTO.setTrigoCorrect(trigoExam.get(i).getTotalCorrect());
-                examScoreDTO.setTrigoIncorrect(trigoExam.get(i).getTotalIncorrect());
-            }
-
-            if(!estExam.isEmpty()){
-                examScoreDTO.setEstCorrect(estExam.get(i).getTotalCorrect());
-                examScoreDTO.setEstIncorrect(estExam.get(i).getTotalIncorrect());
-            }
-
-            examCourseResultDTOS.add(examScoreDTO);
-        }
-        return examCourseResultDTOS;
-
-
-    }*/
-
     @Override
     public List<ExamCourseResultDTO> getExamEffectiveByCourseByStudent(Long studentId, Long cycleId) {
         List<ExamCourseResultDTO> examCourseResultDTOS = new ArrayList<>();
@@ -400,8 +377,8 @@ public class ExamServiceImpl implements ExamService {
         examRepository.getExamsWithResults(cycleId).forEach(exam -> {
             ExamCourseResultDTO examCourseResultDTO = new ExamCourseResultDTO();
             courseRepository.findByParentCourseIsNotNull().forEach(course -> {
-                examResultRepository.listExamEffectiveByCourseByStudent(studentId, course.getId(),exam.getId()).forEach(examResult -> {
-                    examCourseResultDTO.setName(examResult.getName());
+                examResultRepository.listExamEffectiveByCourseByStudent(studentId, course.getId(), exam.getId()).forEach(examResult -> {
+                    examCourseResultDTO.setName(examResult.name());
                     validateCourse(examResult, examCourseResultDTO, course.getAbbreviation());
                 });
 
@@ -410,84 +387,37 @@ public class ExamServiceImpl implements ExamService {
         });
 
         return examCourseResultDTOS;
-
-        /*Course lect = courseRepository.findByAbbreviationAndParentCourseIsNotNull("LECT");
-        Course nyo = courseRepository.findByAbbreviationAndParentCourseIsNotNull("NYO");
-        Course x = courseRepository.findByAbbreviationAndParentCourseIsNotNull("X");
-        Course geo = courseRepository.findByAbbreviationAndParentCourseIsNotNull("GEO");
-        Course trigo = courseRepository.findByAbbreviationAndParentCourseIsNotNull("TRIGO");
-        Course est = courseRepository.findByAbbreviationAndParentCourseIsNotNull("EST");
-
-        //sacar buenas y malas de lectura y matemática
-        List<ExamScoreDTO> lectura = examResultRepository.listExamEffectiveByCourseByStudent(idStudent, idCycle, lect.getId());
-        List<ExamScoreDTO> nyoExam = examResultRepository.listExamEffectiveByCourseByStudent(idStudent, idCycle, nyo.getId());
-        List<ExamScoreDTO> xExam = examResultRepository.listExamEffectiveByCourseByStudent(idStudent, idCycle, x.getId());
-        List<ExamScoreDTO> geoExam = examResultRepository.listExamEffectiveByCourseByStudent(idStudent, idCycle, geo.getId());
-        List<ExamScoreDTO> trigoExam = examResultRepository.listExamEffectiveByCourseByStudent(idStudent, idCycle, trigo.getId());
-        List<ExamScoreDTO> estExam = examResultRepository.listExamEffectiveByCourseByStudent(idStudent, idCycle, est.getId());
-
-
-        for (int i = 0; i < lectura.size(); i++) {
-            ExamCourseResultDTO examScoreDTO = new ExamCourseResultDTO();
-            examScoreDTO.setName(lectura.get(i).getName());
-
-            examScoreDTO.setLectCorrect(lectura.get(i).getTotalCorrect());
-            examScoreDTO.setLectIncorrect(lectura.get(i).getTotalIncorrect());
-
-            examScoreDTO.setNyoCorrect(nyoExam.get(i).getTotalCorrect());
-            examScoreDTO.setNyoIncorrect(nyoExam.get(i).getTotalIncorrect());
-
-            examScoreDTO.setXCorrect(xExam.get(i).getTotalCorrect());
-            examScoreDTO.setXIncorrect(xExam.get(i).getTotalIncorrect());
-
-            examScoreDTO.setGeoCorrect(geoExam.get(i).getTotalCorrect());
-            examScoreDTO.setGeoIncorrect(geoExam.get(i).getTotalIncorrect());
-
-            if (!trigoExam.isEmpty()) {
-                examScoreDTO.setTrigoCorrect(trigoExam.get(i).getTotalCorrect());
-                examScoreDTO.setTrigoIncorrect(trigoExam.get(i).getTotalIncorrect());
-            }
-
-            if (!estExam.isEmpty()) {
-                examScoreDTO.setEstCorrect(estExam.get(i).getTotalCorrect());
-                examScoreDTO.setEstIncorrect(estExam.get(i).getTotalIncorrect());
-            }
-
-            examCourseResultDTOS.add(examScoreDTO);
-        }
-        return examCourseResultDTOS;*/
-
-
     }
 
-    private void validateCourse(ExamScoreDTO examResult, ExamCourseResultDTO examCourseResultDTO, String abbreviation) {
+    private void validateCourse(ExamEffectiveCourse examResult, ExamCourseResultDTO examCourseResultDTO, String abbreviation) {
         switch (abbreviation) {
-            case "LECT":
-                examCourseResultDTO.setLectCorrect(examResult.getTotalCorrect());
-                examCourseResultDTO.setLectIncorrect(examResult.getTotalIncorrect());
-                break;
-            case "NYO":
-                examCourseResultDTO.setNyoCorrect(examResult.getTotalCorrect());
-                examCourseResultDTO.setNyoIncorrect(examResult.getTotalIncorrect());
-                break;
-            case "X":
-                examCourseResultDTO.setXCorrect(examResult.getTotalCorrect());
-                examCourseResultDTO.setXIncorrect(examResult.getTotalIncorrect());
-                break;
-            case "GEO":
-                examCourseResultDTO.setGeoCorrect(examResult.getTotalCorrect());
-                examCourseResultDTO.setGeoIncorrect(examResult.getTotalIncorrect());
-                break;
-            case "TRIGO":
-                examCourseResultDTO.setTrigoCorrect(examResult.getTotalCorrect());
-                examCourseResultDTO.setTrigoIncorrect(examResult.getTotalIncorrect());
-                break;
-            case "EST":
-                examCourseResultDTO.setEstCorrect(examResult.getTotalCorrect());
-                examCourseResultDTO.setEstIncorrect(examResult.getTotalIncorrect());
-                break;
-            default:
-                break;
+            case "LECT" -> {
+                examCourseResultDTO.setLectCorrect(examResult.totalCorrect());
+                examCourseResultDTO.setLectIncorrect(examResult.totalIncorrect());
+            }
+            case "NYO" -> {
+                examCourseResultDTO.setNyoCorrect(examResult.totalCorrect());
+                examCourseResultDTO.setNyoIncorrect(examResult.totalIncorrect());
+            }
+            case "X" -> {
+                examCourseResultDTO.setXCorrect(examResult.totalCorrect());
+                examCourseResultDTO.setXIncorrect(examResult.totalIncorrect());
+            }
+
+            case "GEO" -> {
+                examCourseResultDTO.setGeoCorrect(examResult.totalCorrect());
+                examCourseResultDTO.setGeoIncorrect(examResult.totalIncorrect());
+            }
+
+            case "TRIGO" -> {
+                examCourseResultDTO.setTrigoCorrect(examResult.totalCorrect());
+                examCourseResultDTO.setTrigoIncorrect(examResult.totalIncorrect());
+            }
+
+            case "EST" -> {
+                examCourseResultDTO.setEstCorrect(examResult.totalCorrect());
+                examCourseResultDTO.setEstIncorrect(examResult.totalIncorrect());
+            }
 
         }
     }
@@ -516,7 +446,7 @@ public class ExamServiceImpl implements ExamService {
         //listar todos los examenes con resultados del ciclo
         Long finalAreaId = areaId;
         Pageable topFour = PageRequest.of(0, 4);
-        List<Exam> lastFourExams = examRepository.getExamsWithResultsLastFour(cycleId,topFour);
+        List<Exam> lastFourExams = examRepository.getExamsWithResultsLastFour(cycleId, topFour);
         Collections.reverse(lastFourExams);
         lastFourExams.forEach(exam -> {
             ExamData examData = new ExamData();

@@ -18,4 +18,6 @@ public interface StageRepository extends JpaRepository<Stage, Long> {
     @Modifying
     @Query("UPDATE Stage s SET s.current=false where s.id <> :idStage")
     void setCurrentFalseOthers(Long idStage);
+
+    void deleteAllByCycle_Id(Long cycleId);
 }

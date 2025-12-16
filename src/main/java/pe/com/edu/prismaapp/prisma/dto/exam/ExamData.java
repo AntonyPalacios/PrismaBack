@@ -1,4 +1,4 @@
-package pe.com.edu.prismaapp.prisma.dto;
+package pe.com.edu.prismaapp.prisma.dto.exam;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
