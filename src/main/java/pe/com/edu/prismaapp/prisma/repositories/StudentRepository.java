@@ -20,5 +20,5 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     List<Object[]> findStudentsByStage(Long idStage, Long idUser);
 
     Optional<Student> findByNameIgnoreCase(String name);
-    Optional<Student> findByDniIgnoreCase(String dni);
+    List<Student> findByDniIgnoreCase(String dni);
 }

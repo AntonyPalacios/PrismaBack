@@ -150,10 +150,16 @@ public class StudentServiceImpl implements StudentService {
     @Override
     public Student findByDniOrName(String dni, String name) {
         Student student = null;
-        if (dni != null && dni.length() >= 8) {
-            student = studentRepository.findByDniIgnoreCase(dni).orElse(null);
+        var findByName = false;
+        if (dni != null && !dni.isEmpty()) {
+            var students = studentRepository.findByDniIgnoreCase(dni);
+            if (students.size() != 1) {
+                findByName = true;
+            }else{
+                student = students.get(0);
+            }
         }
-        if (student == null) {
+        if (findByName) {
             student = studentRepository.findByNameIgnoreCase(name).orElse(null);
         }
         return student;
