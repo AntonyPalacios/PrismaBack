@@ -8,20 +8,19 @@ import org.springframework.boot.testcontainers.context.ImportTestcontainers;
 import org.springframework.test.context.jdbc.Sql;
 import pe.com.edu.prismaapp.prisma.config.ContainersConfig;
 
-
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @DataJpaTest
 @ImportTestcontainers(ContainersConfig.class)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-
+@Sql(scripts = "/data-courses.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 class CourseRepositoryTest {
 
     @Autowired
     private CourseRepository courseRepository;
 
     @Test
-    @Sql(scripts = "/data-courses.sql")
     public void repositoryShouldContainOnly2Sections() {
         //Act
         var sections = courseRepository.findByParentCourseIsNull();
@@ -30,7 +29,6 @@ class CourseRepositoryTest {
     }
 
     @Test
-    @Sql(scripts = "/data-courses.sql")
     public void repositoryShouldOnlyHave1LECTand1MATE() {
         //Act
         var sections = courseRepository.findByParentCourseIsNull();
@@ -44,7 +42,6 @@ class CourseRepositoryTest {
     }
 
     @Test
-    @Sql(scripts = "/data-courses.sql")
     public void LectCourseShouldHaveId1() {
         //Act
         var sections = courseRepository.findByParentCourseIsNull();
@@ -55,7 +52,6 @@ class CourseRepositoryTest {
     }
 
     @Test
-    @Sql(scripts = "/data-courses.sql")
     public void MateCourseShouldHaveId2() {
         //Act
         var sections = courseRepository.findByParentCourseIsNull();
@@ -66,7 +62,6 @@ class CourseRepositoryTest {
     }
 
     @Test
-    @Sql(scripts = "/data-courses.sql")
     public void MateCourseShouldHave5Courses() {
         //Act
         var sections = courseRepository.findByParentCourseIsNotNull()
@@ -77,13 +72,48 @@ class CourseRepositoryTest {
     }
 
     @Test
-    @Sql(scripts = "/data-courses.sql")
     public void LectCourseShouldHave1Course() {
         //Act
         var sections = courseRepository.findByParentCourseIsNotNull().stream().filter(section -> section.getParentCourse().getId() == 1L).toList();
 
         //Assert
         assertEquals(1, sections.size());
+    }
+
+    @Test
+    public void LectSectionShouldHave1CourseWithNameLECT() {
+        //Act
+        var lectCourse = courseRepository.findByAbbreviationAndParentCourseIsNotNull("LECT");
+
+        //Assert
+        assertNotNull(lectCourse);
+        assertEquals(1L, lectCourse.getParentCourse().getId());
+    }
+
+    @Test
+    public void MateSectionShouldHave5Courses() {
+        //Act
+        var nyoCourse = courseRepository.findByAbbreviationAndParentCourseIsNotNull("NYO");
+        var geoCourse = courseRepository.findByAbbreviationAndParentCourseIsNotNull("GEO");
+        var xCourse = courseRepository.findByAbbreviationAndParentCourseIsNotNull("X");
+        var trigoCourse = courseRepository.findByAbbreviationAndParentCourseIsNotNull("TRIGO");
+        var estCourse = courseRepository.findByAbbreviationAndParentCourseIsNotNull("EST");
+
+        //Assert
+        assertNotNull(nyoCourse);
+        assertEquals(2L, nyoCourse.getParentCourse().getId());
+
+        assertNotNull(geoCourse);
+        assertEquals(2L, geoCourse.getParentCourse().getId());
+
+        assertNotNull(xCourse);
+        assertEquals(2L, xCourse.getParentCourse().getId());
+
+        assertNotNull(trigoCourse);
+        assertEquals(2L, trigoCourse.getParentCourse().getId());
+
+        assertNotNull(estCourse);
+        assertEquals(2L, estCourse.getParentCourse().getId());
     }
 
 }
