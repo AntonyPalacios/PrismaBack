@@ -148,6 +148,7 @@ public class ExamServiceImpl implements ExamService {
                 }
 
                 String dni = dataFormatter.formatCellValue(row.getCell(2), evaluator).trim();
+                if(dni.equals("0")) dni = "";
                 String name = dataFormatter.formatCellValue(row.getCell(3), evaluator).trim();
                 if (dni.equalsIgnoreCase("PROMEDIO") || name.length() < 3) {
                     break;
@@ -169,7 +170,7 @@ public class ExamServiceImpl implements ExamService {
                     }
                     default -> throw new IllegalArgumentException("Area no soportada: " + area);
                 }
-                var studentStage = getStudentStage(area, config.tutorCol(), name, stageId, row, dataFormatter, evaluator);
+                var studentStage = getStudentStage(area, config.tutorCol(), dni, name, stageId, row, dataFormatter, evaluator);
                 examResult = saveExamResult(config.goodCol(), config.badCol(), config.scoreCol(), exam, studentStage, row, area, dataFormatter, evaluator);
                 processor.accept(examResult, row, dataFormatter);
             }
@@ -178,8 +179,8 @@ public class ExamServiceImpl implements ExamService {
     }
 
 
-    private StudentStage getStudentStage(AreaEnum area, int tutorColumnIndex, String name, Long stageId, Row row, DataFormatter dataFormatter, FormulaEvaluator evaluator) {
-        Student student = studentService.findByDniOrName(null, name);
+    private StudentStage getStudentStage(AreaEnum area, int tutorColumnIndex, String dni, String name, Long stageId, Row row, DataFormatter dataFormatter, FormulaEvaluator evaluator) {
+        Student student = studentService.findByDniOrName(dni, name);
         String tutor = dataFormatter.formatCellValue(row.getCell(tutorColumnIndex), evaluator).trim();
 
         Optional<User> optionalTutor = userService.findTutorByName(tutor);
@@ -202,7 +203,6 @@ public class ExamServiceImpl implements ExamService {
             //si estamos en una nueva etapa, se crean los registros
             if (studentStage == null) {
                 studentStage = saveStudentStage(studentId, stageId);
-                //studentStage = studentStageService.getStudentStage(stageId,studentId);
             }
             studentStageService.validateStudentTutor(studentStage.getId(), tutorId);
         }
