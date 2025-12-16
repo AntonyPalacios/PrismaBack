@@ -10,4 +10,6 @@ import java.util.List;
 public interface CourseRepository extends JpaRepository<Course, Long> {
     Course findByAbbreviationAndParentCourseIsNotNull(String abbreviation);
     List<Course> findByParentCourseIsNotNull();
+
+    List<Course> findByParentCourseIsNull();
 }
