@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import pe.com.edu.prismaapp.prisma.entities.Cycle;
 
 import java.util.Date;
+import java.util.List;
 import java.util.Optional;
 
 public interface CycleRepository extends JpaRepository<Cycle, Long> {
@@ -20,5 +21,5 @@ public interface CycleRepository extends JpaRepository<Cycle, Long> {
     @Query("UPDATE Cycle c SET c.current=false where c.id <> :idCycle")
     void setCurrentFalseOthers(Long idCycle);
 
-    Optional<Cycle> findAllByOrderByEndDateDesc();
+    List<Cycle> findAllByOrderByEndDateDesc();
 }
