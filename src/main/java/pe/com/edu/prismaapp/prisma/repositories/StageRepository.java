@@ -20,4 +20,9 @@ public interface StageRepository extends JpaRepository<Stage, Long> {
     void setCurrentFalseOthers(Long idStage);
 
     void deleteAllByCycle_Id(Long cycleId);
+
+    Optional<Stage> findStageByCurrentTrue();
+    Optional<Stage> findStageByCurrentTrueAndCycle_Id(Long cycleId);
+
+    List<Stage> findAllByOrderByEndDateDesc();
 }

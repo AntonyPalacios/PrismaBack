@@ -90,21 +90,22 @@ public class StageServiceImpl implements StageService {
 
     @Override
     public Optional<Stage> getCurrentStage() {
-        var stage = stageRepository.findStageByCurrentTrue().orElse(null);
         Date currentDate = new Date();
         return stageRepository.findStageByStartDateBeforeAndEndDateAfter(currentDate, currentDate);
     }
 
     @Override
     public StageApi.Response getCurrentStageDTO() {
-        Optional<Stage> optionalStage = this.getCurrentStage();
-        if (optionalStage.isPresent()) {
-            Stage stage = optionalStage.get();
-            return StageApi.Response.from(stage);
-        } else {
-            return null;
+        var currentCycle = cycleRepository.findCycleByCurrentTrue().orElse(null);
+        if(currentCycle == null) {
+            throw new ResourceNotFoundException("Por favor, crear ciclos");
         }
-
+        var currentStage = stageRepository.findStageByCurrentTrueAndCycle_Id(currentCycle.getId())
+                .orElse(stageRepository.findAllByOrderByEndDateDesc().stream().findFirst().orElse(null));
+        if(currentStage == null) {
+            throw new ResourceNotFoundException("Por favor, crear etapas");
+        }
+        return StageApi.Response.from(currentStage);
     }
 
     @Override
