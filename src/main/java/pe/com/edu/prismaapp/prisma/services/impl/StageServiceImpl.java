@@ -90,6 +90,7 @@ public class StageServiceImpl implements StageService {
 
     @Override
     public Optional<Stage> getCurrentStage() {
+        var stage = stageRepository.findStageByCurrentTrue().orElse(null);
         Date currentDate = new Date();
         return stageRepository.findStageByStartDateBeforeAndEndDateAfter(currentDate, currentDate);
     }

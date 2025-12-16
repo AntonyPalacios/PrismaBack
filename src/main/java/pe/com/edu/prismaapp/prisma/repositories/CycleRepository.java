@@ -11,7 +11,7 @@ import java.util.Optional;
 
 public interface CycleRepository extends JpaRepository<Cycle, Long> {
 
-    Cycle findCycleByCurrentTrue();
+    Optional<Cycle> findCycleByCurrentTrue();
 
     @Query("SELECT DISTINCT c FROM Cycle c LEFT JOIN FETCH c.stages WHERE c.id = :id")
     Optional<Cycle> findCycleByIdWithStages(@Param("id") Long id);
@@ -19,4 +19,6 @@ public interface CycleRepository extends JpaRepository<Cycle, Long> {
     @Modifying
     @Query("UPDATE Cycle c SET c.current=false where c.id <> :idCycle")
     void setCurrentFalseOthers(Long idCycle);
+
+    Optional<Cycle> findAllByOrderByEndDateDesc();
 }
