@@ -80,7 +80,11 @@ public class CycleServiceImpl implements CycleService {
 
     @Override
     public CycleApi.Response getCurrentCycle() {
-        Cycle cycle = cycleRepository.findCycleByCurrentTrue();
-        return CycleApi.Response.from(cycle);
+        var currentCycle = cycleRepository.findCycleByCurrentTrue()
+                .orElse(cycleRepository.findAllByOrderByEndDateDesc().stream().findFirst().orElse(null));
+        if(currentCycle == null) {
+            throw new ResourceNotFoundException("Por favor, crear ciclos");
+        }
+        return CycleApi.Response.from(currentCycle);
     }
 }

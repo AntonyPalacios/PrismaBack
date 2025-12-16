@@ -48,15 +48,11 @@ public class StudentServiceImpl implements StudentService {
         saveOrUpdate(student, studentDTO.name(), studentDTO.email(), studentDTO.phone(), studentDTO.dni(), studentDTO.areaId());
         studentRepository.saveAndFlush(student);
 
-        Stage stage = null;
+        Stage stage;
         if (studentDTO.stageId() == null) {
-            Optional<Stage> optionalStage = stageService.getCurrentStage();
-
-            if (optionalStage.isPresent()) {
-                stage = optionalStage.get();
-            }
+            stage = stageService.getCurrentStage().orElseThrow();
         } else {
-            stage = stageService.getStageById(studentDTO.stageId()).get();
+            stage = stageService.getStageById(studentDTO.stageId()).orElseThrow();
         }
         var studentStage = studentStageService.saveStudent(student, stage, studentDTO.isActive());
         var studentStageUser = new StudentStageUser();
@@ -168,7 +164,8 @@ public class StudentServiceImpl implements StudentService {
     @Override
     @Transactional
     public void uploadStudents(MultipartFile file) {
-        Optional<Stage> optionalStage = stageService.getCurrentStage();
+        var stage = stageService.getCurrentStage().orElseThrow();
+        var stageId = stage.getId();
         try (InputStream inputStream = file.getInputStream()) {
             Workbook workbook = WorkbookFactory.create(inputStream);
             DataFormatter dataFormatter = new DataFormatter();
@@ -191,7 +188,6 @@ public class StudentServiceImpl implements StudentService {
 
                 Long tutorId = optionalTutor.isPresent() ? optionalTutor.get().getId() : 0L;
                 Long areaId = optionalArea.isPresent() ? optionalArea.get().getId() : 0L;
-                Long stageId = optionalStage.isPresent() ? optionalStage.get().getId() : null;
                 if (student == null) {
                     StudentApi.Create studentCreate = new StudentApi.Create(name, "", "", dni, tutorId, areaId, stageId, true);
                     this.save(studentCreate);
