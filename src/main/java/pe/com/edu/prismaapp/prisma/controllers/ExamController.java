@@ -7,7 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import pe.com.edu.prismaapp.prisma.dto.exam.ExamApi;
-import pe.com.edu.prismaapp.prisma.dto.exam.ExamCourseResultDTO;
+import pe.com.edu.prismaapp.prisma.dto.exam.ExamEffectiveCourse;
 import pe.com.edu.prismaapp.prisma.services.ExamService;
 import pe.com.edu.prismaapp.prisma.util.AreaEnum;
 
@@ -59,7 +59,7 @@ public class ExamController {
     }
 
     @GetMapping("/course/{idStudent}/{idCycle}")
-    ResponseEntity<List<ExamCourseResultDTO>> getExamEffectiveCourse(@PathVariable Long idStudent, @PathVariable Long idCycle) {
+    ResponseEntity<List<ExamEffectiveCourse>> getExamEffectiveCourse(@PathVariable Long idStudent, @PathVariable Long idCycle) {
         return ResponseEntity.status(HttpStatus.OK).body(examService.getExamEffectiveByCourseByStudent(idStudent, idCycle));
     }
 
