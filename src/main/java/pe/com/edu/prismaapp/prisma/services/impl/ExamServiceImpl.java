@@ -148,7 +148,7 @@ public class ExamServiceImpl implements ExamService {
                 }
 
                 String dni = dataFormatter.formatCellValue(row.getCell(2), evaluator).trim();
-                if(dni.equals("0")) dni = "";
+                if (dni.equals("0")) dni = "";
                 String name = dataFormatter.formatCellValue(row.getCell(3), evaluator).trim();
                 if (dni.equalsIgnoreCase("PROMEDIO") || name.length() < 3) {
                     break;
@@ -331,96 +331,39 @@ public class ExamServiceImpl implements ExamService {
 
     @Override
     public List<ExamEffectiveSection> getExamEffectiveByStudent(Long studentId, Long cycleId) {
-        return examCourseResultRepository.getExamEffectiveSectionByStudentAndCycle(cycleId,studentId);
+        return examCourseResultRepository.getExamEffectiveSectionByStudentAndCycle(cycleId, studentId);
     }
 
     @Override
     public List<ExamEffectiveCourse> getExamEffectiveByCourseByStudent(Long studentId, Long cycleId) {
-        return examCourseResultRepository.getExamEffectiveCourseByStudentAndCycle(cycleId,studentId);
+        return examCourseResultRepository.getExamEffectiveCourseByStudentAndCycle(cycleId, studentId);
     }
 
     @Override
     public ExamDataSummary getExamSummaryByTutor(Long areaId, Long userId, Long cycleId) {
-        ExamDataSummary examDataSummary = new ExamDataSummary();
 
         List<ExamData> examDatas = new ArrayList<>();
-        List<ExamIndicator> lectData = new ArrayList<>();
-        List<ExamIndicator> mateData = new ArrayList<>();
+        List<ExamSectionSummary> lectData;
+        List<ExamSectionSummary> mateData;
 
         if (areaId == -1) {
             areaId = null;
         }
-
-
-        List<List<Object[]>> allMinLect = new ArrayList<>();
-        List<List<Object[]>> allMaxLect = new ArrayList<>();
-        List<List<Object[]>> allAvgLect = new ArrayList<>();
-
-        List<List<Object[]>> allMinMate = new ArrayList<>();
-        List<List<Object[]>> allMaxMate = new ArrayList<>();
-        List<List<Object[]>> allAvgMate = new ArrayList<>();
-
         //listar todos los examenes con resultados del ciclo
         Long finalAreaId = areaId;
         Pageable topFour = PageRequest.of(0, 4);
         List<Exam> lastFourExams = examRepository.getExamsWithResultsLastFour(cycleId, topFour);
         Collections.reverse(lastFourExams);
+        List<Long> examIds = new ArrayList<>();
         lastFourExams.forEach(exam -> {
-            ExamData examData = new ExamData();
-            examData.setId(exam.getId());
-            examData.setName(exam.getName());
-            examData.setDate(exam.getDate());
+            var examData = new ExamData(exam.getId(), exam.getName(), exam.getDate());
             examDatas.add(examData);
-
-            //sacar agregados de lectura para el area por usuario
-            List<Object[]> minLect = examResultRepository.getMinExamResult(exam.getId(), finalAreaId, userId, 1L);
-            List<Object[]> maxLect = examResultRepository.getMaxExamResult(exam.getId(), finalAreaId, userId, 1L);
-            List<Object[]> avgLect = examResultRepository.getAvgExamResult(exam.getId(), finalAreaId, userId, 1L);
-
-            //sacar agregados de mate para el area por usuario
-            List<Object[]> minMate = examResultRepository.getMinExamResult(exam.getId(), finalAreaId, userId, 2L);
-            List<Object[]> maxMate = examResultRepository.getMaxExamResult(exam.getId(), finalAreaId, userId, 2L);
-            List<Object[]> avgMate = examResultRepository.getAvgExamResult(exam.getId(), finalAreaId, userId, 2L);
-
-            allMinLect.add(minLect);
-            allMaxLect.add(maxLect);
-            allAvgLect.add(avgLect);
-
-            allMinMate.add(minMate);
-            allMaxMate.add(maxMate);
-            allAvgMate.add(avgMate);
+            examIds.add(exam.getId());
 
         });
-        examDataSummary.setExamData(examDatas);
+        lectData = examResultRepository.getExamSummaryByTutor(examIds, finalAreaId, userId, cycleId, 1L); // lectura
+        mateData = examResultRepository.getExamSummaryByTutor(examIds, finalAreaId, userId, cycleId, 2L); // mate
 
-        setExamIndicator("Min", allMinLect, lectData);
-        setExamIndicator("Max", allMaxLect, lectData);
-        setExamIndicator("Avg", allAvgLect, lectData);
-
-        setExamIndicator("Min", allMinMate, mateData);
-        setExamIndicator("Max", allMaxMate, mateData);
-        setExamIndicator("Avg", allAvgMate, mateData);
-
-        examDataSummary.setLectData(lectData);
-        examDataSummary.setMateData(mateData);
-
-        return examDataSummary;
-    }
-
-    private void setExamIndicator(String indicator, List<List<Object[]>> allData, List<ExamIndicator> data) {
-        ExamIndicator examIndicator = new ExamIndicator();
-        List<ExamResultIndicator> examResultIndicators = new ArrayList<>();
-        examIndicator.setIndicator(indicator);
-        for (List<Object[]> listData : allData) {
-            for (Object[] result : listData) {
-                ExamResultIndicator examResultIndicator = new ExamResultIndicator();
-                examResultIndicator.setExamId((Long) result[0]);
-                examResultIndicator.setCorrect(Integer.parseInt(String.valueOf(result[1])));
-                examResultIndicator.setIncorrect(Integer.parseInt(String.valueOf(result[2])));
-                examResultIndicators.add(examResultIndicator);
-            }
-        }
-        examIndicator.setResults(examResultIndicators);
-        data.add(examIndicator);
+        return new ExamDataSummary(examDatas, lectData, mateData);
     }
 }

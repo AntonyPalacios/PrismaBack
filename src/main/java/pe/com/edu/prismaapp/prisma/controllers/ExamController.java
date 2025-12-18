@@ -6,10 +6,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import pe.com.edu.prismaapp.prisma.dto.exam.ExamApi;
-import pe.com.edu.prismaapp.prisma.dto.exam.ExamEffectiveCourse;
-import pe.com.edu.prismaapp.prisma.dto.exam.ExamEffectiveSection;
-import pe.com.edu.prismaapp.prisma.dto.exam.ExamScore;
+import pe.com.edu.prismaapp.prisma.dto.exam.*;
 import pe.com.edu.prismaapp.prisma.services.ExamService;
 import pe.com.edu.prismaapp.prisma.util.AreaEnum;
 
@@ -66,7 +63,7 @@ public class ExamController {
     }
 
     @GetMapping("/summary/{areaId}/{userId}/{cycleId}")
-    ResponseEntity<Object> getExamSummary(@PathVariable Long areaId, @PathVariable Long userId, @PathVariable Long cycleId) {
+    ResponseEntity<ExamDataSummary> getExamSummary(@PathVariable Long areaId, @PathVariable Long userId, @PathVariable Long cycleId) {
         return ResponseEntity.status(HttpStatus.OK).body(examService.getExamSummaryByTutor(areaId, userId, cycleId));
     }
 }
