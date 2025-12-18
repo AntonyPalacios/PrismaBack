@@ -9,6 +9,7 @@ import org.springframework.web.multipart.MultipartFile;
 import pe.com.edu.prismaapp.prisma.dto.exam.ExamApi;
 import pe.com.edu.prismaapp.prisma.dto.exam.ExamEffectiveCourse;
 import pe.com.edu.prismaapp.prisma.dto.exam.ExamEffectiveSection;
+import pe.com.edu.prismaapp.prisma.dto.exam.ExamScore;
 import pe.com.edu.prismaapp.prisma.services.ExamService;
 import pe.com.edu.prismaapp.prisma.util.AreaEnum;
 
@@ -50,7 +51,7 @@ public class ExamController {
     }
 
     @GetMapping("/results/{idStudent}/{idCycle}")
-    ResponseEntity<List<ExamApi.ExamScore>> getExamResult(@PathVariable Long idStudent, @PathVariable Long idCycle) {
+    ResponseEntity<List<ExamScore>> getExamResult(@PathVariable Long idStudent, @PathVariable Long idCycle) {
         return ResponseEntity.status(HttpStatus.OK).body(examService.getExamResultsByStudent(idStudent, idCycle));
     }
 
