@@ -2,7 +2,6 @@ package pe.com.edu.prismaapp.prisma.repositories;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
-import pe.com.edu.prismaapp.prisma.dto.exam.ExamEffectiveCourse;
 import pe.com.edu.prismaapp.prisma.dto.exam.ExamEffectiveSection;
 import pe.com.edu.prismaapp.prisma.dto.exam.ExamResultRecord;
 import pe.com.edu.prismaapp.prisma.entities.ExamResult;
@@ -40,15 +39,6 @@ public interface ExamResultRepository extends JpaRepository<ExamResult, Long> {
             "GROUP BY C.name, C.date " +
             "ORDER BY C.date ")
     List<ExamEffectiveSection> listExamEffectiveByStudent(Long studentId, Long cycleId, Long courseId);
-
-    @Query("SELECT new pe.com.edu.prismaapp.prisma.dto.exam.ExamEffectiveCourse(C.name, F.courseCorrect, F.courseIncorrect) " +
-            "FROM ExamCourseResult F " +
-            "INNER JOIN F.examResult A " +
-            "INNER JOIN A.studentStage B " +
-            "INNER JOIN A.exam C " +
-            "WHERE B.student.id = :studentId AND F.course.id = :courseId AND A.exam.id = :examId " +
-            "ORDER BY C.date ")
-    List<ExamEffectiveCourse> listExamEffectiveByCourseByStudent(Long studentId, Long courseId, Long examId);
 
     @Query(value = "SELECT d.id_exam, min(t.sum_correct), min(t.sum_incorrect) " +
             "FROM texam d " +
