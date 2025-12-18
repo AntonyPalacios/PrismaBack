@@ -8,7 +8,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
-import pe.com.edu.prismaapp.prisma.dto.*;
+import pe.com.edu.prismaapp.prisma.dto.StudentApi;
 import pe.com.edu.prismaapp.prisma.dto.exam.*;
 import pe.com.edu.prismaapp.prisma.entities.*;
 import pe.com.edu.prismaapp.prisma.errorHandler.ResourceNotFoundException;
@@ -371,55 +371,8 @@ public class ExamServiceImpl implements ExamService {
     }
 
     @Override
-    public List<ExamCourseResultDTO> getExamEffectiveByCourseByStudent(Long studentId, Long cycleId) {
-        List<ExamCourseResultDTO> examCourseResultDTOS = new ArrayList<>();
-
-        examRepository.getExamsWithResults(cycleId).forEach(exam -> {
-            ExamCourseResultDTO examCourseResultDTO = new ExamCourseResultDTO();
-            courseRepository.findByParentCourseIsNotNull().forEach(course -> {
-                examResultRepository.listExamEffectiveByCourseByStudent(studentId, course.getId(), exam.getId()).forEach(examResult -> {
-                    examCourseResultDTO.setName(examResult.name());
-                    validateCourse(examResult, examCourseResultDTO, course.getAbbreviation());
-                });
-
-            });
-            examCourseResultDTOS.add(examCourseResultDTO);
-        });
-
-        return examCourseResultDTOS;
-    }
-
-    private void validateCourse(ExamEffectiveCourse examResult, ExamCourseResultDTO examCourseResultDTO, String abbreviation) {
-        switch (abbreviation) {
-            case "LECT" -> {
-                examCourseResultDTO.setLectCorrect(examResult.totalCorrect());
-                examCourseResultDTO.setLectIncorrect(examResult.totalIncorrect());
-            }
-            case "NYO" -> {
-                examCourseResultDTO.setNyoCorrect(examResult.totalCorrect());
-                examCourseResultDTO.setNyoIncorrect(examResult.totalIncorrect());
-            }
-            case "X" -> {
-                examCourseResultDTO.setXCorrect(examResult.totalCorrect());
-                examCourseResultDTO.setXIncorrect(examResult.totalIncorrect());
-            }
-
-            case "GEO" -> {
-                examCourseResultDTO.setGeoCorrect(examResult.totalCorrect());
-                examCourseResultDTO.setGeoIncorrect(examResult.totalIncorrect());
-            }
-
-            case "TRIGO" -> {
-                examCourseResultDTO.setTrigoCorrect(examResult.totalCorrect());
-                examCourseResultDTO.setTrigoIncorrect(examResult.totalIncorrect());
-            }
-
-            case "EST" -> {
-                examCourseResultDTO.setEstCorrect(examResult.totalCorrect());
-                examCourseResultDTO.setEstIncorrect(examResult.totalIncorrect());
-            }
-
-        }
+    public List<ExamEffectiveCourse> getExamEffectiveByCourseByStudent(Long studentId, Long cycleId) {
+        return examCourseResultRepository.getExamEffectiveCourseByStudentAndCycle(cycleId,studentId);
     }
 
     @Override

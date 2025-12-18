@@ -3,8 +3,8 @@ package pe.com.edu.prismaapp.prisma.services;
 import jakarta.validation.Valid;
 import org.springframework.web.multipart.MultipartFile;
 import pe.com.edu.prismaapp.prisma.dto.exam.ExamApi;
-import pe.com.edu.prismaapp.prisma.dto.exam.ExamCourseResultDTO;
 import pe.com.edu.prismaapp.prisma.dto.exam.ExamDataSummary;
+import pe.com.edu.prismaapp.prisma.dto.exam.ExamEffectiveCourse;
 import pe.com.edu.prismaapp.prisma.util.AreaEnum;
 
 import java.io.IOException;
@@ -23,7 +23,7 @@ public interface ExamService {
 
     List<ExamApi.ExamEffectiveSectionResponse> getExamEffectiveByStudent(Long idStudent, Long idCycle);
 
-    List<ExamCourseResultDTO> getExamEffectiveByCourseByStudent(Long idStudent, Long idCycle);
+    List<ExamEffectiveCourse> getExamEffectiveByCourseByStudent(Long idStudent, Long idCycle);
 
     ExamDataSummary getExamSummaryByTutor(Long areaId, Long userId, Long cycleId);
 }
