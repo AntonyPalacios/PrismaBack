@@ -2,7 +2,7 @@ package pe.com.edu.prismaapp.prisma.repositories;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
-import pe.com.edu.prismaapp.prisma.dto.exam.ExamResultRecord;
+import pe.com.edu.prismaapp.prisma.dto.exam.ExamScore;
 import pe.com.edu.prismaapp.prisma.entities.ExamResult;
 
 import java.util.List;
@@ -12,20 +12,25 @@ public interface ExamResultRepository extends JpaRepository<ExamResult, Long> {
     Optional<ExamResult> findExamResultByExam_IdAndStudentStage_Id(Long examId, Long studentStageId);
 
 
-    @Query("SELECT new pe.com.edu.prismaapp.prisma.dto.exam.ExamResultRecord(A.exam.id, A.area.id, C.name, A.merit, A.totalScore) " +
-            "FROM ExamResult A " +
-            "INNER JOIN A.studentStage B " +
-            "INNER JOIN A.exam C " +
-            "INNER JOIN C.stage D " +
-            "INNER JOIN D.cycle E " +
-            "WHERE B.student.id = :studentId AND E.id = :cycleId " +
-            "ORDER BY C.date ")
-    List<ExamResultRecord> listExamResultsByStudent(Long studentId, Long cycleId);
-
-    @Query("SELECT min(totalScore), max(totalScore), avg(totalScore) " +
-            "from ExamResult " +
-            "WHERE exam.id = :examId and area.id= :areaId ")
-    List<Object[]> getMinMaxAndAvgByExamByArea(Long examId, Long areaId);
+    @Query("""
+            SELECT new pe.com.edu.prismaapp.prisma.dto.exam.ExamScore(
+                 C.name,
+                 B.totalScore,
+                 B.merit,
+                 MIN(F.totalScore),
+                 MAX(F.totalScore),
+                 ROUND(AVG(F.totalScore),2))
+            from ExamResult B
+                  INNER JOIN B.exam C
+                  INNER JOIN ExamResult F on (F.exam = C and F.area = B.area)
+                  INNER JOIN C.stage D
+                  INNER JOIN B.studentStage E
+             where D.cycle.id = :cycleId
+               and E.student.id = :studentId
+             GROUP BY C.name,C.date, B.totalScore, B.merit
+             ORDER BY C.date
+            """)
+    List<ExamScore> listExamResultsByStudent(Long studentId, Long cycleId);
 
     @Query(value = "SELECT d.id_exam, min(t.sum_correct), min(t.sum_incorrect) " +
             "FROM texam d " +

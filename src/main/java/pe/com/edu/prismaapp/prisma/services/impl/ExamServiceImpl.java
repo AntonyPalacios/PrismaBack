@@ -325,21 +325,8 @@ public class ExamServiceImpl implements ExamService {
     }
 
     @Override
-    public List<ExamApi.ExamScore> getExamResultsByStudent(Long studentId, Long cycleId) {
-        var examResults = examResultRepository.listExamResultsByStudent(studentId, cycleId);
-        return examResults.stream().map(e -> {
-            var examId = e.examId();
-            var areaId = e.areaId();
-            List<Object[]> data = examResultRepository.getMinMaxAndAvgByExamByArea(examId, areaId);
-            return new ExamApi.ExamScore(
-                    e.name(),
-                    e.totalScore(),
-                    (Double) data.get(0)[0],
-                    (Double) data.get(0)[1],
-                    (Double) data.get(0)[2],
-                    e.merit()
-            );
-        }).toList();
+    public List<ExamScore> getExamResultsByStudent(Long studentId, Long cycleId) {
+        return examResultRepository.listExamResultsByStudent(studentId, cycleId);
     }
 
     @Override

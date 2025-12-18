@@ -2,10 +2,7 @@ package pe.com.edu.prismaapp.prisma.services;
 
 import jakarta.validation.Valid;
 import org.springframework.web.multipart.MultipartFile;
-import pe.com.edu.prismaapp.prisma.dto.exam.ExamApi;
-import pe.com.edu.prismaapp.prisma.dto.exam.ExamDataSummary;
-import pe.com.edu.prismaapp.prisma.dto.exam.ExamEffectiveCourse;
-import pe.com.edu.prismaapp.prisma.dto.exam.ExamEffectiveSection;
+import pe.com.edu.prismaapp.prisma.dto.exam.*;
 import pe.com.edu.prismaapp.prisma.util.AreaEnum;
 
 import java.io.IOException;
@@ -20,7 +17,7 @@ public interface ExamService {
 
     void importResults(Long examId, AreaEnum area, MultipartFile file) throws IOException;
 
-    List<ExamApi.ExamScore> getExamResultsByStudent(Long idStudent, Long idCycle);
+    List<ExamScore> getExamResultsByStudent(Long idStudent, Long idCycle);
 
     List<ExamEffectiveSection>  getExamEffectiveByStudent(Long idStudent, Long idCycle);
 
