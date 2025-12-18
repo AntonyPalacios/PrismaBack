@@ -2,7 +2,6 @@ package pe.com.edu.prismaapp.prisma.repositories;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
-import pe.com.edu.prismaapp.prisma.dto.exam.ExamEffectiveSection;
 import pe.com.edu.prismaapp.prisma.dto.exam.ExamResultRecord;
 import pe.com.edu.prismaapp.prisma.entities.ExamResult;
 
@@ -27,18 +26,6 @@ public interface ExamResultRepository extends JpaRepository<ExamResult, Long> {
             "from ExamResult " +
             "WHERE exam.id = :examId and area.id= :areaId ")
     List<Object[]> getMinMaxAndAvgByExamByArea(Long examId, Long areaId);
-
-    @Query("SELECT new pe.com.edu.prismaapp.prisma.dto.exam.ExamEffectiveSection(C.name, sum(F.courseCorrect), sum(F.courseIncorrect)) " +
-            "FROM ExamCourseResult F " +
-            "INNER JOIN F.examResult A " +
-            "INNER JOIN A.studentStage B " +
-            "INNER JOIN A.exam C " +
-            "INNER JOIN C.stage D " +
-            "INNER JOIN D.cycle E " +
-            "WHERE B.student.id = :studentId AND E.id = :cycleId AND F.course.parentCourse.id = :courseId " +
-            "GROUP BY C.name, C.date " +
-            "ORDER BY C.date ")
-    List<ExamEffectiveSection> listExamEffectiveByStudent(Long studentId, Long cycleId, Long courseId);
 
     @Query(value = "SELECT d.id_exam, min(t.sum_correct), min(t.sum_incorrect) " +
             "FROM texam d " +

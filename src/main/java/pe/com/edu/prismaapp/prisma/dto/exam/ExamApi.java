@@ -39,14 +39,6 @@ public interface ExamApi {
     ) {
     }
 
-    record ExamEffectiveSectionResponse(String name,
-                                        int totalLectCorrect,
-                                        int totalLectIncorrect,
-                                        int totalMateCorrect,
-                                        int totalMateIncorrect
-    ) {
-    }
-
     record Response(@NotBlank Long id,
                     @NotBlank @Size(min = 3, max = 15) String name,
                     @NotBlank Long stageId,
