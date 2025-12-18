@@ -343,31 +343,8 @@ public class ExamServiceImpl implements ExamService {
     }
 
     @Override
-    public List<ExamApi.ExamEffectiveSectionResponse> getExamEffectiveByStudent(Long idStudent, Long idCycle) {
-        List<ExamApi.ExamEffectiveSectionResponse> examScoreDTOs = new ArrayList<>();
-        //sacar buenas y malas de lectura y matemática
-        List<ExamEffectiveSection> lectura =
-                examResultRepository.listExamEffectiveByStudent(idStudent, idCycle, 1L);
-
-        List<ExamEffectiveSection> mate =
-                examResultRepository.listExamEffectiveByStudent(idStudent, idCycle, 2L);
-        // TODO: verificar forma de unir ambos streams en tuplas
-        if (lectura.size() == mate.size()) {
-            for (int i = 0; i < lectura.size(); i++) {
-                ExamApi.ExamEffectiveSectionResponse examScoreDTO
-                        = new ExamApi.ExamEffectiveSectionResponse(
-                        lectura.get(i).name(),
-                        lectura.get(i).totalCorrect().intValue(),
-                        lectura.get(i).totalIncorrect().intValue(),
-                        mate.get(i).totalCorrect().intValue(),
-                        mate.get(i).totalIncorrect().intValue()
-                );
-                examScoreDTOs.add(examScoreDTO);
-            }
-            return examScoreDTOs;
-        }
-        return examScoreDTOs;
-
+    public List<ExamEffectiveSection> getExamEffectiveByStudent(Long studentId, Long cycleId) {
+        return examCourseResultRepository.getExamEffectiveSectionByStudentAndCycle(cycleId,studentId);
     }
 
     @Override

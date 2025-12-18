@@ -13,12 +13,6 @@ public interface ExamRepository extends JpaRepository<Exam, Long> {
 
     List<Exam> findAllByStage_Cycle_IdOrderByDateAsc(Long cycleId);
 
-    @Query("Select e from Exam e " +
-            " inner join ExamResult er on e.id = er.exam.id " +
-            "where e.stage.cycle.id = :cycleId " +
-            "order by e.date asc")
-    List<Exam> getExamsWithResults(Long cycleId);
-
     @Query("Select distinct e from Exam e " +
             " inner join ExamResult er on e.id = er.exam.id " +
             "where e.stage.cycle.id = :cycleId " +

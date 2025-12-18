@@ -3,6 +3,7 @@ package pe.com.edu.prismaapp.prisma.repositories;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import pe.com.edu.prismaapp.prisma.dto.exam.ExamEffectiveCourse;
+import pe.com.edu.prismaapp.prisma.dto.exam.ExamEffectiveSection;
 import pe.com.edu.prismaapp.prisma.entities.ExamCourseResult;
 
 import java.util.List;
@@ -44,4 +45,26 @@ public interface ExamCourseResultRepository extends JpaRepository<ExamCourseResu
             """
     )
     List<ExamEffectiveCourse> getExamEffectiveCourseByStudentAndCycle(Long cycleId, Long studentId);
+
+    @Query(value = """
+             SELECT new pe.com.edu.prismaapp.prisma.dto.exam.ExamEffectiveSection(C.name,
+                    SUM(CASE WHEN F.parentCourse.id = 1 then A.courseCorrect ELSE 0 END)   ,
+                    SUM(CASE WHEN F.parentCourse.id = 1 then A.courseIncorrect ELSE 0 END) ,
+            
+                    SUM(CASE WHEN F.parentCourse.id = 2 then A.courseCorrect ELSE 0 END)    ,
+                    SUM(CASE WHEN F.parentCourse.id = 2 then A.courseIncorrect ELSE 0 END))
+            
+             FROM ExamCourseResult A
+                      INNER JOIN A.examResult B
+                      INNER JOIN A.course F
+                      INNER JOIN B.exam C
+                      INNER JOIN C.stage D
+                      INNER JOIN B.studentStage E
+             where D.cycle.id = :cycleId
+               and E.student.id = :studentId
+             GROUP BY C.name, C.date
+             ORDER BY C.date
+            """
+    )
+    List<ExamEffectiveSection> getExamEffectiveSectionByStudentAndCycle(Long cycleId, Long studentId);
 }

@@ -5,6 +5,7 @@ import org.springframework.web.multipart.MultipartFile;
 import pe.com.edu.prismaapp.prisma.dto.exam.ExamApi;
 import pe.com.edu.prismaapp.prisma.dto.exam.ExamDataSummary;
 import pe.com.edu.prismaapp.prisma.dto.exam.ExamEffectiveCourse;
+import pe.com.edu.prismaapp.prisma.dto.exam.ExamEffectiveSection;
 import pe.com.edu.prismaapp.prisma.util.AreaEnum;
 
 import java.io.IOException;
@@ -21,7 +22,7 @@ public interface ExamService {
 
     List<ExamApi.ExamScore> getExamResultsByStudent(Long idStudent, Long idCycle);
 
-    List<ExamApi.ExamEffectiveSectionResponse> getExamEffectiveByStudent(Long idStudent, Long idCycle);
+    List<ExamEffectiveSection>  getExamEffectiveByStudent(Long idStudent, Long idCycle);
 
     List<ExamEffectiveCourse> getExamEffectiveByCourseByStudent(Long idStudent, Long idCycle);
 
