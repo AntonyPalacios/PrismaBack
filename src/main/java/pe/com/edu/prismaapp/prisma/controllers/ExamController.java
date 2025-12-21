@@ -66,4 +66,9 @@ public class ExamController {
     ResponseEntity<ExamDataSummary> getExamSummary(@PathVariable Long areaId, @PathVariable Long userId, @PathVariable Long cycleId) {
         return ResponseEntity.status(HttpStatus.OK).body(examService.getExamSummaryByTutor(areaId, userId, cycleId));
     }
+
+    @GetMapping("/goals/{studentId}/{cycleId}")
+    ResponseEntity<List<ExamGoal>> getExamGoals(@PathVariable Long studentId, @PathVariable Long cycleId) {
+        return ResponseEntity.status(HttpStatus.OK).body(examService.getExamGoalsByStudent(studentId, cycleId));
+    }
 }

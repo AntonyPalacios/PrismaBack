@@ -210,9 +210,9 @@ public class ExamServiceImpl implements ExamService {
     }
 
     private StudentStage saveStudentStage(Long studentId, Long stageId) {
-        Student student = studentService.findById(studentId);
-        Optional<Stage> optStage = stageService.getStageById(stageId);
-        return studentStageService.saveStudent(student, optStage.get(), true);
+        Student student = studentService.findById(studentId).orElseThrow();
+        Stage stage = stageService.getStageById(stageId).orElseThrow();
+        return studentStageService.saveStudent(student, stage, true);
     }
 
 
@@ -365,5 +365,15 @@ public class ExamServiceImpl implements ExamService {
         mateData = examResultRepository.getExamSummaryByTutor(examIds, finalAreaId, userId, cycleId, 2L); // mate
 
         return new ExamDataSummary(examDatas, lectData, mateData);
+    }
+
+    @Override
+    public List<ExamGoal> getExamGoalsByStudent(Long studentId, Long cycleId) {
+        return examResultRepository.listExamResultsWithGoalsByStudent(studentId, cycleId);
+    }
+
+    @Override
+    public Optional<Exam> findById(Long id) {
+        return examRepository.findById(id);
     }
 }
