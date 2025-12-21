@@ -2,6 +2,7 @@ package pe.com.edu.prismaapp.prisma.repositories;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import pe.com.edu.prismaapp.prisma.dto.exam.ExamGoal;
 import pe.com.edu.prismaapp.prisma.dto.exam.ExamScore;
 import pe.com.edu.prismaapp.prisma.dto.exam.ExamSectionSummary;
 import pe.com.edu.prismaapp.prisma.entities.ExamResult;
@@ -61,11 +62,11 @@ public interface ExamResultRepository extends JpaRepository<ExamResult, Long> {
     List<ExamSectionSummary> getExamSummaryByTutor(List<Long> examIds, Long areaId, Long userId, Long cycleId, Long sectionId);
 
     @Query("""
-    SELECT
+    SELECT new pe.com.edu.prismaapp.prisma.dto.exam.ExamGoal(
         C.name,
         B.totalScore,
         ROUND(B.totalScore * (1 + coalesce(G.scoreGoal,0.1)),2),
-        B.merit
+        B.merit)
     from ExamResult B
         INNER JOIN B.exam C
         INNER JOIN ExamResult F on (F.exam = C and F.area = B.area)
@@ -78,5 +79,5 @@ public interface ExamResultRepository extends JpaRepository<ExamResult, Long> {
     GROUP BY C.name,C.date, B.totalScore, B.merit,ROUND(B.totalScore * (1 + coalesce(G.scoreGoal,0.1)),2)
     ORDER BY C.date
 """)
-    List<ExamScore> listExamResultsWithGoalsByStudent(Long studentId, Long cycleId);
+    List<ExamGoal> listExamResultsWithGoalsByStudent(Long studentId, Long cycleId);
 }

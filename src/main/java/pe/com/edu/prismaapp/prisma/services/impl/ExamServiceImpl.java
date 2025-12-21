@@ -366,4 +366,9 @@ public class ExamServiceImpl implements ExamService {
 
         return new ExamDataSummary(examDatas, lectData, mateData);
     }
+
+    @Override
+    public List<ExamGoal> getExamGoalsByStudent(Long studentId, Long cycleId) {
+        return examResultRepository.listExamResultsWithGoalsByStudent(studentId, cycleId);
+    }
 }

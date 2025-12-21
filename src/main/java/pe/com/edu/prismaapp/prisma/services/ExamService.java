@@ -24,4 +24,6 @@ public interface ExamService {
     List<ExamEffectiveCourse> getExamEffectiveByCourseByStudent(Long idStudent, Long idCycle);
 
     ExamDataSummary getExamSummaryByTutor(Long areaId, Long userId, Long cycleId);
+
+    List<ExamGoal>  getExamGoalsByStudent(Long studentId, Long cycleId);
 }
