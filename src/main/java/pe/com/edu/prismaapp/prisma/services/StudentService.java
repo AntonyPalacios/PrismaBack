@@ -23,5 +23,5 @@ public interface StudentService {
 
     Student findByDniOrName(String dni,String name);
 
-    Student findById(Long id);
+    Optional<Student> findById(Long id);
 }

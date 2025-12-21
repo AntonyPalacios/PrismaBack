@@ -203,7 +203,7 @@ public class StudentServiceImpl implements StudentService {
     }
 
     @Override
-    public Student findById(Long id) {
-        return studentRepository.findById(id).orElse(null);
+    public Optional<Student> findById(Long id) {
+        return studentRepository.findById(id);
     }
 }

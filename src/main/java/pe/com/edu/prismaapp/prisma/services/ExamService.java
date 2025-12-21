@@ -3,10 +3,12 @@ package pe.com.edu.prismaapp.prisma.services;
 import jakarta.validation.Valid;
 import org.springframework.web.multipart.MultipartFile;
 import pe.com.edu.prismaapp.prisma.dto.exam.*;
+import pe.com.edu.prismaapp.prisma.entities.Exam;
 import pe.com.edu.prismaapp.prisma.util.AreaEnum;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 
 public interface ExamService {
     List<ExamApi.ExamList> getExams(Long cycleId, Long stageId);
@@ -26,4 +28,6 @@ public interface ExamService {
     ExamDataSummary getExamSummaryByTutor(Long areaId, Long userId, Long cycleId);
 
     List<ExamGoal>  getExamGoalsByStudent(Long studentId, Long cycleId);
+
+    Optional<Exam> findById(Long id);
 }
