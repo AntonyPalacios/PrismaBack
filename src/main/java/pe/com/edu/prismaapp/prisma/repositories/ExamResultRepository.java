@@ -59,4 +59,24 @@ public interface ExamResultRepository extends JpaRepository<ExamResult, Long> {
     ORDER BY C.date
 """)
     List<ExamSectionSummary> getExamSummaryByTutor(List<Long> examIds, Long areaId, Long userId, Long cycleId, Long sectionId);
+
+    @Query("""
+    SELECT
+        C.name,
+        B.totalScore,
+        ROUND(B.totalScore * (1 + coalesce(G.scoreGoal,0.1)),2),
+        B.merit
+    from ExamResult B
+        INNER JOIN B.exam C
+        INNER JOIN ExamResult F on (F.exam = C and F.area = B.area)
+        INNER JOIN C.stage D
+        INNER JOIN B.studentStage E
+        LEFT JOIN Goal G on (G.exam = C and G.studentStage = E)
+    where
+        D.cycle.id = :cycleId
+        AND E.student.id = :studentId
+    GROUP BY C.name,C.date, B.totalScore, B.merit,ROUND(B.totalScore * (1 + coalesce(G.scoreGoal,0.1)),2)
+    ORDER BY C.date
+""")
+    List<ExamScore> listExamResultsWithGoalsByStudent(Long studentId, Long cycleId);
 }
