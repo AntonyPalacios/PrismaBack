@@ -13,12 +13,12 @@ public class Goal {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "id_exam")
+    @JoinColumn(name = "id_exam", nullable = false)
     private Exam exam;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "id_student_stage", nullable = false)
-    private StudentStage studentStage;
+    @JoinColumn(name = "id", nullable = false)
+    private Student student;
 
     private double scoreGoal;
     private int lectGoal;

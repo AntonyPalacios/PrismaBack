@@ -69,13 +69,13 @@ public interface ExamResultRepository extends JpaRepository<ExamResult, Long> {
         B.merit)
     from ExamResult B
         INNER JOIN B.exam C
-        INNER JOIN ExamResult F on (F.exam = C and F.area = B.area)
         INNER JOIN C.stage D
         INNER JOIN B.studentStage E
-        LEFT JOIN Goal G on (G.exam = C and G.studentStage = E)
+        INNER JOIN E.student F
+        LEFT JOIN Goal G on (G.exam = C and G.student = F)
     where
         D.cycle.id = :cycleId
-        AND E.student.id = :studentId
+        AND F.id = :studentId
     GROUP BY C.name,C.date, B.totalScore, B.merit,ROUND(B.totalScore * (1 + coalesce(G.scoreGoal,0.1)),2)
     ORDER BY C.date
 """)
