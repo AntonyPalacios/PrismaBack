@@ -61,23 +61,43 @@ public interface ExamResultRepository extends JpaRepository<ExamResult, Long> {
 """)
     List<ExamSectionSummary> getExamSummaryByTutor(List<Long> examIds, Long areaId, Long userId, Long cycleId, Long sectionId);
 
-    @Query("""
-    SELECT new pe.com.edu.prismaapp.prisma.dto.exam.ExamGoal(
-        C.name,
-        B.totalScore,
-        ROUND(B.totalScore * (1 + coalesce(G.scoreGoal,0.1)),2),
-        B.merit)
-    from ExamResult B
-        INNER JOIN B.exam C
-        INNER JOIN C.stage D
-        INNER JOIN B.studentStage E
-        INNER JOIN E.student F
-        LEFT JOIN Goal G on (G.exam = C and G.student = F)
-    where
-        D.cycle.id = :cycleId
-        AND F.id = :studentId
-    GROUP BY C.name,C.date, B.totalScore, B.merit,ROUND(B.totalScore * (1 + coalesce(G.scoreGoal,0.1)),2)
-    ORDER BY C.date
-""")
+    @Query(value = """
+SELECT
+    C.name                                   AS exam_name,
+    B.total_score                            AS score,
+    ROUND(
+            CASE
+                WHEN G.score_goal IS NOT NULL THEN
+                    prev_score * (1+G.score_goal)
+                WHEN prev_score IS NOT NULL THEN
+                    prev_score * 1.10
+                ELSE
+                    B.total_score * 1.10
+                END
+        , 2) AS goal,
+    B.merit
+FROM (
+         SELECT
+             B.*,
+             LAG(B.total_score) OVER (
+                 PARTITION BY E.id_student
+                 ORDER BY C.date
+                 ) AS prev_score
+         FROM texamresult B
+                  INNER JOIN texam C ON C.id_exam = B.id_exam
+                  INNER JOIN tstage D ON D.id_stage = C.id_stage
+                  INNER JOIN tstudentstage E ON E.id_student_stage = B.id_student_stage
+
+         WHERE D.id_cycle = :cycleId
+           AND E.id_student = :studentId
+     ) B
+         INNER JOIN texam C ON C.id_exam = B.id_exam
+         INNER JOIN tstudentstage E ON E.id_student_stage = B.id_student_stage
+         INNER JOIN tstudent F on E.id_student = F.id
+         LEFT JOIN tgoal G
+                   ON G.id_exam = C.id_exam and G.id = F.id
+
+ORDER BY C.date
+""", nativeQuery = true)
     List<ExamGoal> listExamResultsWithGoalsByStudent(Long studentId, Long cycleId);
 }
