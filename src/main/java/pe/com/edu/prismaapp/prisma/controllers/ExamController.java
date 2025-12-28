@@ -1,5 +1,6 @@
 package pe.com.edu.prismaapp.prisma.controllers;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -15,6 +16,8 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/exams")
+@Tag(name = "Gestión de Exámenes", description = "Operaciones relacionadas a los exámenes. " +
+        "Contiene también los endpoints para obtener estadísticas de los exámenes")
 public class ExamController {
 
     private final ExamService examService;
