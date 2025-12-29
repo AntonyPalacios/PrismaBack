@@ -39,3 +39,11 @@ server:
 cors:
   allowedOrigins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
 
+springdoc:
+  swagger-ui:
+    # 2. Ordena los CONTROLADORES (Tags) alfabéticamente (A-Z)
+    tags-sorter: alpha
+    # 3. Ordena los ENDPOINTS (Métodos HTTP) dentro de cada controlador alfabéticamente
+    operations-sorter: method
+  writer-with-order-by-keys: false
+
