@@ -103,7 +103,7 @@ public class ExamServiceImpl implements ExamService {
         exam.setDate(examDTO.date());
         if (examDTO.stageId() != null) {
             Stage stage = stageService.getStageById(examDTO.stageId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Examen no encontrado con ID: " + examDTO.stageId()));
+                    .orElseThrow(() -> new ResourceNotFoundException("Etapa no encontrada con ID: " + examDTO.stageId()));
             exam.setStage(stage);
         } else {
             throw new RuntimeException("Seleccione etapa");
