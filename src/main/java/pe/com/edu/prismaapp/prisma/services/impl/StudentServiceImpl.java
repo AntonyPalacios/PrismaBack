@@ -228,9 +228,9 @@ public class StudentServiceImpl implements StudentService {
                     continue;
                 }
                 String dni = dataFormatter.formatCellValue(row.getCell(0)).trim();
-                String apPat = dataFormatter.formatCellValue(row.getCell(1)).trim();
-                String apMat = dataFormatter.formatCellValue(row.getCell(2)).trim();
-                String name = dataFormatter.formatCellValue(row.getCell(3)).trim();
+                String apPat = dataFormatter.formatCellValue(row.getCell(1)).trim().toUpperCase();
+                String apMat = dataFormatter.formatCellValue(row.getCell(2)).trim().toUpperCase();
+                String name = dataFormatter.formatCellValue(row.getCell(3)).trim().toUpperCase();
                 String area = dataFormatter.formatCellValue(row.getCell(4)).trim();
                 String tutor = dataFormatter.formatCellValue(row.getCell(5)).trim();
 
