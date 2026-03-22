@@ -9,7 +9,7 @@ import java.util.Optional;
 
 public interface StudentRepository extends JpaRepository<Student, Long> {
 
-    @Query("SELECT C.id, C.dni, C.email, C.name, C.phone, C.area.id as areaId, " +
+    @Query("SELECT C.id, C.dni, C.email, C.name,C.apPat,C.apMat, C.phone, C.area.id as areaId, " +
             "A.user.id as tutorId, B.active as isActive, B.stage.id as stageId " +
             "FROM StudentStageUser A " +
             "INNER JOIN StudentStage B on A.studentStage.id=B.id " +
@@ -20,5 +20,6 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     List<Object[]> findStudentsByStage(Long idStage, Long idUser);
 
     Optional<Student> findByNameIgnoreCase(String name);
+    List<Student> findByApPatAndApMat(String apPat, String apMat);
     List<Student> findByDniIgnoreCase(String dni);
 }

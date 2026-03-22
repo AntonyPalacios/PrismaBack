@@ -19,6 +19,10 @@ public class Student {
 
     @Column(nullable = false)
     private String name;
+    @Column(nullable = false, name = "apat")
+    private String apPat;
+    @Column(nullable = false, name = "amat")
+    private String apMat;
     private String email;
     private String phone;
 //    @Column(unique=true)

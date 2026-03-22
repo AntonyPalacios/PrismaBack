@@ -21,6 +21,7 @@ public interface StudentService {
 
     void uploadStudents(MultipartFile file);
 
+    Student findByDniOrNameImport(String dni, String name, String apPat, String apMat);
     Student findByDniOrName(String dni,String name);
 
     Optional<Student> findById(Long id);

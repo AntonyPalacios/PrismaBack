@@ -191,7 +191,7 @@ public class ExamServiceImpl implements ExamService {
             //crear alumno
             Optional<Area> optionalArea = areaService.findAreaByName(area.name());
             Long areaId = optionalArea.isPresent() ? optionalArea.get().getId() : 0L;
-            StudentApi.Create studentCreate = new StudentApi.Create(name, "", "", "", tutorId, areaId, stageId, true);
+            StudentApi.Create studentCreate = new StudentApi.Create(name,"","", "", "", "", tutorId, areaId, stageId, true);
 
             studentDTO = studentService.save(studentCreate);
         }

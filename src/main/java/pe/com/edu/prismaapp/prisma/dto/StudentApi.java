@@ -14,8 +14,18 @@ public interface StudentApi {
     record Create(
             @NotBlank
             @Size(min = 2, max = 50)
-            @Schema(description = "Nombre del alumno", example = "Silvia Valle")
+            @Schema(description = "Nombre del alumno", example = "Silvia")
             String name,
+
+            @NotBlank
+            @Size(min = 2, max = 50)
+            @Schema(description = "Ap. Paterno del alumno", example = "Quispe")
+            String apPat,
+
+            @NotBlank
+            @Size(min = 2, max = 50)
+            @Schema(description = "Ap. Materno del alumno", example = "Robles")
+            String apMat,
 
             @Email
             @Schema(description = "Correo del alumno", example = "alumno2@gmail.com")
@@ -54,6 +64,16 @@ public interface StudentApi {
             @Schema(description = "Nombre del alumno", example = "Silvia Valle")
             String name,
 
+            @NotBlank
+            @Size(min = 2, max = 50)
+            @Schema(description = "Ap. Paterno del alumno", example = "Quispe")
+            String apPat,
+
+            @NotBlank
+            @Size(min = 2, max = 50)
+            @Schema(description = "Ap. Materno del alumno", example = "Robles")
+            String apMat,
+
             @Email
             @Schema(description = "Correo del alumno", example = "alumno2@gmail.com")
             String email,
@@ -91,6 +111,16 @@ public interface StudentApi {
             @Schema(description = "Nombre del alumno", example = "Silvia Valle")
             String name,
 
+            @NotBlank
+            @Size(min = 2, max = 50)
+            @Schema(description = "Ap. Paterno del alumno", example = "Quispe")
+            String apPat,
+
+            @NotBlank
+            @Size(min = 2, max = 50)
+            @Schema(description = "Ap. Materno del alumno", example = "Robles")
+            String apMat,
+
             @Email
             @Schema(description = "Correo del alumno", example = "alumno2@gmail.com")
             String email,
@@ -120,6 +150,8 @@ public interface StudentApi {
             return new StudentApi.Response(
                     student.getId(),
                     student.getName(),
+                    student.getApPat(),
+                    student.getApMat(),
                     student.getEmail(),
                     student.getPhone(),
                     student.getDni(),

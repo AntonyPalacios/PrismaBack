@@ -1,5 +1,6 @@
 package pe.com.edu.prismaapp.prisma.services.impl;
 
+import org.apache.commons.text.similarity.LevenshteinDistance;
 import org.apache.poi.ss.usermodel.*;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -45,7 +46,7 @@ public class StudentServiceImpl implements StudentService {
     @Transactional
     public StudentApi.Response save(StudentApi.Create studentDTO) {
         var student = new Student();
-        saveOrUpdate(student, studentDTO.name(), studentDTO.email(), studentDTO.phone(), studentDTO.dni(), studentDTO.areaId());
+        saveOrUpdate(student, studentDTO.name(), studentDTO.apPat(),studentDTO.apMat(), studentDTO.email(), studentDTO.phone(), studentDTO.dni(), studentDTO.areaId());
         studentRepository.saveAndFlush(student);
 
         Stage stage;
@@ -69,7 +70,7 @@ public class StudentServiceImpl implements StudentService {
     public StudentApi.Response update(Long id, StudentApi.Update studentDTO) {
         var student = studentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Alumno no encontrado con ID: " + id));
-        saveOrUpdate(student, studentDTO.name(), studentDTO.email(), studentDTO.phone(), studentDTO.dni(), studentDTO.areaId());
+        saveOrUpdate(student, studentDTO.name(), student.getApPat(),student.getApMat(), studentDTO.email(), studentDTO.phone(), studentDTO.dni(), studentDTO.areaId());
         studentRepository.save(student);
 
         var studentStage = studentStageService.updateStudent(studentDTO);
@@ -81,11 +82,21 @@ public class StudentServiceImpl implements StudentService {
         return StudentApi.Response.from(student, studentDTO.tutorId(), studentDTO.areaId(), studentDTO.stageId(), studentDTO.isActive());
     }
 
-    private void saveOrUpdate(Student student, String name, String email, String phone, String dni, Long areaId) {
+    private void saveOrUpdate(Student student, String name,String apPat,String apMat, String email, String phone, String dni, Long areaId) {
         student.setName(name);
+        student.setApPat(apPat);
+        student.setApMat(apMat);
         student.setEmail(email);
         student.setPhone(phone);
-        student.setDni(dni);
+        //nuevo alumno
+        if(student.getDni() == null){
+            student.setDni(dni);
+        }
+        //actualizar alumno, no se le puede borrar el dni, solo modificar
+        if(student.getDni()!= null && student.getDni().isEmpty() && !dni.isEmpty()) {
+            student.setDni(dni);
+        }
+
 
         if (areaId != 0) {
             areaService.getAreaById(areaId).ifPresent(student::setArea);
@@ -124,13 +135,15 @@ public class StudentServiceImpl implements StudentService {
         return studentsList.stream().map(student -> new StudentApi.Response(
                 (Long) student[0],   // id
                 (String) student[3], // name
+                (String) student[4], // apPat
+                (String) student[5], // apMat
                 (String) student[2], // email
-                (String) student[4], // phone
+                (String) student[6], // phone
                 (String) student[1], // dni
-                (Long) student[6],   // tutorId
-                (Long) student[5],   // areaId
-                (Long) student[8],   // stageId
-                (Boolean) student[7] // active
+                (Long) student[8],   // tutorId
+                (Long) student[7],   // areaId
+                (Long) student[10],   // stageId
+                (Boolean) student[9] // active
 
         )).toList();
     }
@@ -144,21 +157,59 @@ public class StudentServiceImpl implements StudentService {
     }
 
     @Override
-    public Student findByDniOrName(String dni, String name) {
-        Student student = null;
-        var findByName = false;
+    public Student findByDniOrNameImport(String dni, String name, String apPaterno, String apMaterno) {
+
+        // 1. Prioridad principal: DNI
         if (dni != null && !dni.isEmpty()) {
             var students = studentRepository.findByDniIgnoreCase(dni);
-            if (students.size() != 1) {
-                findByName = true;
-            }else{
-                student = students.get(0);
+            if (students.size() == 1) {
+                return students.get(0);
             }
         }
-        if (findByName) {
-            student = studentRepository.findByNameIgnoreCase(name).orElse(null);
+
+        // 2. Si no hay DNI o no se encontró, buscar por apellidos exactos
+        List<Student> posiblesHermanos = studentRepository.findByApPatAndApMat(apPaterno, apMaterno);
+
+        if (posiblesHermanos.isEmpty()) {
+            return null;
         }
-        return student;
+        if (posiblesHermanos.size() == 1) {
+            return posiblesHermanos.get(0);
+        }
+
+        // 3. Desempate por nombre con tolerancia a errores tipográficos
+        LevenshteinDistance levenshtein = new LevenshteinDistance();
+        Student mejorMatch = null;
+        int menorDistancia = Integer.MAX_VALUE;
+
+        for (Student student : posiblesHermanos) {
+            // Se compara en minúsculas para ignorar mayúsculas/minúsculas
+            int distancia = levenshtein.apply(
+                    student.getName().toLowerCase(),
+                    name.toLowerCase()
+            );
+
+            if (distancia < menorDistancia) {
+                menorDistancia = distancia;
+                mejorMatch = student;
+            }
+        }
+
+        // Definir un umbral de tolerancia (ej. máximo 2 o 3 letras distintas)
+        // Esto evita que devuelva a un hermano con un nombre totalmente distinto
+        // solo porque fue el "menos diferente".
+        int UMBRAL_TOLERANCIA = 2;
+
+        if (menorDistancia <= UMBRAL_TOLERANCIA) {
+            return mejorMatch;
+        }
+
+        return null;
+    }
+
+    @Override
+    public Student findByDniOrName(String dni, String name) {
+        return null;
     }
 
     @Override
@@ -177,11 +228,17 @@ public class StudentServiceImpl implements StudentService {
                     continue;
                 }
                 String dni = dataFormatter.formatCellValue(row.getCell(0)).trim();
-                String name = dataFormatter.formatCellValue(row.getCell(1)).trim();
-                String area = dataFormatter.formatCellValue(row.getCell(2)).trim();
-                String tutor = dataFormatter.formatCellValue(row.getCell(3)).trim();
+                String apPat = dataFormatter.formatCellValue(row.getCell(1)).trim();
+                String apMat = dataFormatter.formatCellValue(row.getCell(2)).trim();
+                String name = dataFormatter.formatCellValue(row.getCell(3)).trim();
+                String area = dataFormatter.formatCellValue(row.getCell(4)).trim();
+                String tutor = dataFormatter.formatCellValue(row.getCell(5)).trim();
 
-                Student student = findByDniOrName(dni, name);
+                if(apPat.isEmpty() || apMat.isEmpty() || name.isEmpty()) {
+                    break;
+                }
+
+                Student student = findByDniOrNameImport(dni, name,apPat, apMat);
 
                 Optional<Area> optionalArea = areaService.findAreaByName(area);
                 Optional<User> optionalTutor = userService.findTutorByName(tutor);
@@ -189,10 +246,10 @@ public class StudentServiceImpl implements StudentService {
                 Long tutorId = optionalTutor.isPresent() ? optionalTutor.get().getId() : 0L;
                 Long areaId = optionalArea.isPresent() ? optionalArea.get().getId() : 0L;
                 if (student == null) {
-                    StudentApi.Create studentCreate = new StudentApi.Create(name, "", "", dni, tutorId, areaId, stageId, true);
+                    StudentApi.Create studentCreate = new StudentApi.Create(name,apPat,apMat, "", "", dni, tutorId, areaId, stageId, true);
                     this.save(studentCreate);
                 } else {
-                    StudentApi.Update studentUpdate = new StudentApi.Update(student.getId(), name, student.getEmail(), student.getPhone(), dni, tutorId, areaId, stageId, true);
+                    StudentApi.Update studentUpdate = new StudentApi.Update(student.getId(), name,apPat,apMat, student.getEmail(), student.getPhone(), dni, tutorId, areaId, stageId, true);
                     this.update(student.getId(), studentUpdate);
                 }
 
