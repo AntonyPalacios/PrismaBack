@@ -1,0 +1,9 @@
+# Local development overrides — never used in prod (see application-docker.yml / deploy env vars).
+app:
+  jwt:
+    cookie-secure: false # allow the auth cookie over plain http://localhost
+
+logging:
+  level:
+    pe.com.edu.prisma: DEBUG
+    org.hibernate.SQL: DEBUG

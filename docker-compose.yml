@@ -1,0 +1,24 @@
+# Local dev database only. Runs alongside `mvn spring-boot:run` on the
+# host (not the app itself) — the full multi-container deploy (backend +
+# frontend + db) is designed once the frontend module exists.
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: prisma_v2_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-prisma}
+      POSTGRES_USER: ${DB_USER:-prisma}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-prisma}
+    ports:
+      - "5432:5432"
+    volumes:
+      - prisma_v2_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-prisma}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  prisma_v2_db_data:
