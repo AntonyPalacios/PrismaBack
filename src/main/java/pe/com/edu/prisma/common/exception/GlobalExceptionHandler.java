@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -60,6 +61,15 @@ public class GlobalExceptionHandler {
         ProblemDetail problem = problem(HttpStatus.BAD_REQUEST, detail, errorId);
         problem.setProperty("fields", fieldErrors(ex));
         return problem;
+    }
+
+    // e.g. a POST to /api/v1/areas: areas and courses are read-only data, so
+    // their write endpoints don't exist. A 405, never the generic 500 below.
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ProblemDetail handleMethodNotAllowed(HttpRequestMethodNotSupportedException ex,
+            HttpServletRequest request) {
+        String errorId = logAndTag(ex, request, HttpStatus.METHOD_NOT_ALLOWED);
+        return problem(HttpStatus.METHOD_NOT_ALLOWED, "Esta operación no está disponible.", errorId);
     }
 
     // Catch-all: anything not handled above is a bug, not an expected

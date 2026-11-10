@@ -16,6 +16,8 @@ Los tutores (psicólogos) acompañan a los alumnos con simulacros semanales, sig
   - Ciencias: sin Estadística.
   - Letras: todos los cursos.
   - Arquitectura: sin Trigonometría ni Estadística.
+- **Áreas y cursos son datos fijos (inmutables):** siempre son las mismas 2 áreas y 6 cursos, sembrados por migración. La app solo los consulta; no hay crear, editar ni desactivar (ni en la API ni en la UI). Si algún día cambian, se hace con una migración nueva.
+- **Tipos de examen sí son administrables** (crear/editar y qué cursos evalúa cada uno).
 - **Carreras** (Ciencias, Letras, Arquitectura, Biomédica, Derecho, Artes): cada una apunta a un tipo de examen.
 - **Roles:** `ADMIN`, `TUTOR`, `COORDINADOR` (todo el módulo de exámenes salvo la recarga forzada, que es solo de Admin).
 - **Admin permanente (inmutable):** `apalaciosc0109@gmail.com` (Antony Palacios Coronado) es siempre `ADMIN`. Se siembra por migración y ningún flujo de la app puede desactivarlo ni quitarle ese rol.
@@ -132,7 +134,7 @@ Backend en Spring Boot 4.1.2 (PrismaBack#53, mergeado). Rebanada de login en PR:
 | Módulo | Backend | Frontend |
 |---|---|---|
 | security / login (Google, `/me`, logout, 401, CSRF) | ✅ (PR #55) | ✅ login, layout, sesión (PR #37) |
-| catalog (áreas, cursos, tipos de examen) | ✅ CRUD + 1 test IT (Áreas) | ❌ ← **siguiente rebanada: Áreas** |
+| catalog (áreas, cursos, tipos de examen) | ✅ CRUD + 1 test IT (Áreas) | ❌ ← **siguiente rebanada: catálogo de áreas y cursos (solo lectura)** |
 | users (gestión de usuarios y roles) | 🟡 entidades + seed (admin y Silvia) | ❌ |
 | academic, students, tutoring, exams, imports, goals, logbook, dashboards | ❌ (el esquema ya existe en V1) | ❌ |
 
@@ -171,6 +173,7 @@ Resueltos el 2026-11-09: Spring Boot → 4.1.x · se mantiene JavaScript · dos 
 ---
 
 ## Historial de cambios
+- **2026-11-10** — (cat. C) Áreas y cursos pasan a ser datos fijos de solo lectura: se eliminan sus endpoints de crear/editar/desactivar (REQ-CATALOG-01/02 quedan como consulta). Los tipos de examen siguen siendo administrables (REQ-CATALOG-03).
 - **2026-11-09** — (cat. C) Antony es admin permanente e inmutable; Silvia es el primer tutor. Ambos se siembran en la rebanada de login.
 - **2026-11-09** — Revisión con Antony (cat. D): Spring Boot 4.1.x, JS se mantiene, dos repos + copia `docs/AGREEMENTS.md`, categorías de cambio A–D, regla "issue + rama antes de código" con la skill `prisma-flow`.
 - **2026-11-09** — Creación. Se consolidan los acuerdos dispersos en memorias de Claude (decisiones back y front, contexto Excel, aislamiento de v1) y se adopta ODD + vertical slices.
