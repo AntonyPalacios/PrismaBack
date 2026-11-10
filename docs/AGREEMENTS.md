@@ -17,7 +17,7 @@ Los tutores (psicólogos) acompañan a los alumnos con simulacros semanales, sig
   - Letras: todos los cursos.
   - Arquitectura: sin Trigonometría ni Estadística.
 - **Áreas y cursos son datos fijos (inmutables):** siempre son las mismas 2 áreas y 6 cursos, sembrados por migración. La app solo los consulta; no hay crear, editar ni desactivar (ni en la API ni en la UI). Si algún día cambian, se hace con una migración nueva.
-- **Tipos de examen sí son administrables** (crear/editar y qué cursos evalúa cada uno).
+- **Tipos de examen sí son administrables:** crear y editar (nombre + cursos que evalúa, en un solo formulario y un solo envío). Nombre único sin distinguir mayúsculas. No se desactivan.
 - **Carreras** (Ciencias, Letras, Arquitectura, Biomédica, Derecho, Artes): cada una apunta a un tipo de examen.
 - **Roles:** `ADMIN`, `TUTOR`, `COORDINADOR` (todo el módulo de exámenes salvo la recarga forzada, que es solo de Admin).
 - **Admin permanente (inmutable):** `apalaciosc0109@gmail.com` (Antony Palacios Coronado) es siempre `ADMIN`. Se siembra por migración y ningún flujo de la app puede desactivarlo ni quitarle ese rol.
@@ -134,7 +134,7 @@ Backend en Spring Boot 4.1.2 (PrismaBack#53, mergeado). Rebanada de login en PR:
 | Módulo | Backend | Frontend |
 |---|---|---|
 | security / login (Google, `/me`, logout, 401, CSRF) | ✅ (PR #55) | ✅ login, layout, sesión (PR #37) |
-| catalog (áreas, cursos, tipos de examen) | ✅ CRUD + 1 test IT (Áreas) | ❌ ← **siguiente rebanada: catálogo de áreas y cursos (solo lectura)** |
+| catalog (áreas, cursos, tipos de examen) | ✅ áreas y cursos de solo lectura; tipos de examen CRUD sin tests | ✅ áreas y cursos (solo lectura) ← **siguiente: tipos de examen** |
 | users (gestión de usuarios y roles) | 🟡 entidades + seed (admin y Silvia) | ❌ |
 | academic, students, tutoring, exams, imports, goals, logbook, dashboards | ❌ (el esquema ya existe en V1) | ❌ |
 
@@ -173,6 +173,7 @@ Resueltos el 2026-11-09: Spring Boot → 4.1.x · se mantiene JavaScript · dos 
 ---
 
 ## Historial de cambios
+- **2026-11-10** — (cat. C) Tipos de examen: se crean/editan con nombre y cursos en un solo envío (`POST`/`PUT` con `courseIds`, reemplaza a `PUT .../courses`), nombre único sin distinguir mayúsculas (409), sin desactivación (se elimina su `DELETE`).
 - **2026-11-10** — (cat. C) Áreas y cursos pasan a ser datos fijos de solo lectura: se eliminan sus endpoints de crear/editar/desactivar (REQ-CATALOG-01/02 quedan como consulta). Los tipos de examen siguen siendo administrables (REQ-CATALOG-03).
 - **2026-11-09** — (cat. C) Antony es admin permanente e inmutable; Silvia es el primer tutor. Ambos se siembran en la rebanada de login.
 - **2026-11-09** — Revisión con Antony (cat. D): Spring Boot 4.1.x, JS se mantiene, dos repos + copia `docs/AGREEMENTS.md`, categorías de cambio A–D, regla "issue + rama antes de código" con la skill `prisma-flow`.

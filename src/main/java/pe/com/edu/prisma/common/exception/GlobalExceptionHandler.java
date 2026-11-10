@@ -11,6 +11,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -70,6 +71,14 @@ public class GlobalExceptionHandler {
             HttpServletRequest request) {
         String errorId = logAndTag(ex, request, HttpStatus.METHOD_NOT_ALLOWED);
         return problem(HttpStatus.METHOD_NOT_ALLOWED, "Esta operación no está disponible.", errorId);
+    }
+
+    // A URL that maps to nothing (e.g. the removed PUT /exam-types/{id}/courses):
+    // a plain 404, never the generic 500 below.
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ProblemDetail handleNoResource(NoResourceFoundException ex, HttpServletRequest request) {
+        String errorId = logAndTag(ex, request, HttpStatus.NOT_FOUND);
+        return problem(HttpStatus.NOT_FOUND, "No encontramos lo que buscas.", errorId);
     }
 
     // Catch-all: anything not handled above is a bug, not an expected
