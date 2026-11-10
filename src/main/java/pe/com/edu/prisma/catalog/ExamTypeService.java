@@ -1,10 +1,13 @@
 package pe.com.edu.prisma.catalog;
 
 import java.util.List;
-import java.util.Set;
 import pe.com.edu.prisma.catalog.dto.ExamTypeDto;
 import pe.com.edu.prisma.catalog.dto.UpsertExamTypeRequest;
 
+/**
+ * Exam types are managed by an admin: created and edited (name + courses in
+ * one request), never deactivated (project agreement, 2026-11-10).
+ */
 public interface ExamTypeService {
 
     List<ExamTypeDto> findAll();
@@ -14,8 +17,4 @@ public interface ExamTypeService {
     ExamTypeDto create(UpsertExamTypeRequest request);
 
     ExamTypeDto update(Long id, UpsertExamTypeRequest request);
-
-    ExamTypeDto assignCourses(Long id, Set<Long> courseIds);
-
-    void deactivate(Long id);
 }

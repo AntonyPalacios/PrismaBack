@@ -21,7 +21,8 @@ import pe.com.edu.prisma.common.BaseEntity;
 @Table(name = "exam_type")
 public class ExamType extends BaseEntity {
 
-    @Column(nullable = false, unique = true, length = 50)
+    // unique ignoring case: enforced by ux_exam_type_name_lower (V4) and checked in the service
+    @Column(nullable = false, length = 50)
     private String name; // Ciencias, Letras, Arquitectura
 
     @Column(nullable = false)
