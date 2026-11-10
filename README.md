@@ -1,6 +1,6 @@
 # Prisma backend v2
 
-Spring Boot 3.4 · Java 21 · PostgreSQL · Flyway · MapStruct · JWT-in-cookie
+Spring Boot 4.1 · Java 21 · PostgreSQL · Flyway · MapStruct · JWT-in-cookie
 
 ## Antes de arrancar
 

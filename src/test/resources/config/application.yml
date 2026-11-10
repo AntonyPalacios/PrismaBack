@@ -1,0 +1,16 @@
+# Test-only overrides. Files under classpath:/config/ take precedence over
+# classpath:/application.yml, so only the keys below change; everything else
+# comes from src/main/resources. Tests never read .env, so the secrets that
+# production gets from environment variables need harmless fixed values here.
+app:
+  jwt:
+    secret: test-only-jwt-secret-at-least-256-bits-long-0123456789abcdef
+
+spring:
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: test-client-id
+            client-secret: test-client-secret
