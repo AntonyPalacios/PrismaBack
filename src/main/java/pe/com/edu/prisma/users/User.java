@@ -17,7 +17,7 @@ import pe.com.edu.prisma.common.FullAuditEntity;
 /**
  * Registration is admin-controlled, not self-service: a Google account
  * only becomes a session if its email already matches a row here (see
- * the security module's CustomOAuth2UserService) — same policy the old
+ * the security module's GoogleLoginService) — same policy the old
  * system had, just enforced in one place instead of implied.
  */
 @Getter
@@ -42,6 +42,9 @@ public class User extends FullAuditEntity {
     @Column(name = "google_sub")
     private String googleSub;
 
+    @Column(name = "photo_url", length = 1024)
+    private String photoUrl;
+
     @Column(nullable = false)
     private boolean active = true;
 
@@ -51,6 +54,11 @@ public class User extends FullAuditEntity {
             joinColumns = @JoinColumn(name = "user_id"),
             inverseJoinColumns = @JoinColumn(name = "role_id"))
     private Set<Role> roles = new HashSet<>();
+
+    /** Both surnames, e.g. "Palacios Coronado" — used for "Apellidos, Nombres" displays. */
+    public String getLastNames() {
+        return lastNameMat == null || lastNameMat.isBlank() ? lastNamePat : lastNamePat + " " + lastNameMat;
+    }
 
     public String getFullName() {
         return lastNameMat == null || lastNameMat.isBlank()
