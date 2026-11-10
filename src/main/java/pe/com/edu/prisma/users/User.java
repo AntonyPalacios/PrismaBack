@@ -27,6 +27,12 @@ import pe.com.edu.prisma.common.FullAuditEntity;
 @Table(name = "app_user")
 public class User extends FullAuditEntity {
 
+    /**
+     * Project agreement (immutable): this account is always an active ADMIN.
+     * Seeded by V3; no flow may deactivate it or take that role away.
+     */
+    public static final String PERMANENT_ADMIN_EMAIL = "apalaciosc0109@gmail.com";
+
     @Column(nullable = false, unique = true)
     private String email;
 
@@ -58,6 +64,10 @@ public class User extends FullAuditEntity {
     /** Both surnames, e.g. "Palacios Coronado" — used for "Apellidos, Nombres" displays. */
     public String getLastNames() {
         return lastNameMat == null || lastNameMat.isBlank() ? lastNamePat : lastNamePat + " " + lastNameMat;
+    }
+
+    public boolean isPermanentAdmin() {
+        return PERMANENT_ADMIN_EMAIL.equalsIgnoreCase(email);
     }
 
     public String getFullName() {
