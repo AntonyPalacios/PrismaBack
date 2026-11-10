@@ -2,8 +2,8 @@ package pe.com.edu.prisma.catalog;
 
 import java.util.List;
 import pe.com.edu.prisma.catalog.dto.CourseDto;
-import pe.com.edu.prisma.catalog.dto.UpsertCourseRequest;
 
+/** Courses are fixed seed data: read-only (project agreement, 2026-11-10). */
 public interface CourseService {
 
     List<CourseDto> findAll();
@@ -11,10 +11,4 @@ public interface CourseService {
     List<CourseDto> findByArea(Long areaId);
 
     CourseDto findById(Long id);
-
-    CourseDto create(UpsertCourseRequest request);
-
-    CourseDto update(Long id, UpsertCourseRequest request);
-
-    void deactivate(Long id);
 }
