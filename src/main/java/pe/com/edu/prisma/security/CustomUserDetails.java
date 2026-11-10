@@ -20,6 +20,10 @@ public class CustomUserDetails implements UserDetails, AuthenticatedUser {
         this.user = user;
     }
 
+    public User getUser() {
+        return user;
+    }
+
     @Override
     public Long getId() {
         return user.getId();
