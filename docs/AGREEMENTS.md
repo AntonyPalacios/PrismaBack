@@ -2,7 +2,7 @@
 
 > Archivo de contexto para cualquier persona o agente que trabaje en este proyecto.
 > Es la **fuente única de acuerdos**. Si un acuerdo cambia, se cambia aquí (y se anota en el historial al final).
-> Última revisión: 2026-11-09 — **borrador pendiente de revisión** (ver sección "Por revisar").
+> Última revisión: 2026-11-10 — **borrador pendiente de revisión** (ver sección "Por revisar").
 
 ---
 
@@ -20,7 +20,8 @@ Los tutores (psicólogos) acompañan a los alumnos con simulacros semanales, sig
 - **Tipos de examen sí son administrables:** crear y editar (nombre + cursos que evalúa, en un solo formulario y un solo envío). Nombre único sin distinguir mayúsculas. No se desactivan.
 - **Carreras** (Ciencias, Letras, Arquitectura, Biomédica, Derecho, Artes): cada una apunta a un tipo de examen. Administrables por ADMIN: crear, editar (incluido cambiar su tipo de examen) **desactivar** (soft-delete, siguen listadas como "Inactiva") y **reactivar**. Nombre único sin distinguir mayúsculas. Se gestionan en la pestaña "Carreras" de "Catálogo".
 - **Roles:** `ADMIN`, `TUTOR`, `COORDINADOR` (todo el módulo de exámenes salvo la recarga forzada, que es solo de Admin).
-- **Admin permanente (inmutable):** `apalaciosc0109@gmail.com` (Antony Palacios Coronado) es siempre `ADMIN`. Se siembra por migración y ningún flujo de la app puede desactivarlo ni quitarle ese rol.
+- **Admin permanente (inmutable):** `apalaciosc0109@gmail.com` (Antony Palacios Coronado) es siempre `ADMIN`. Se siembra por migración y ningún flujo de la app puede desactivarlo ni quitarle ese rol (el backend responde 409). Por eso no existe la regla de "último admin activo".
+- **Usuarios:** los gestiona solo ADMIN en "Usuarios": crear, editar nombres y roles, desactivar (soft-delete) y reactivar. Correo único sin distinguir mayúsculas (se guarda en minúsculas) y no editable. Al menos un rol; se permiten varios a la vez.
 - **Primer tutor:** `silvia.valleg@prisma.edu.pe` (Silvia Valle Gómez) (sembrado junto al admin).
 - **Usuarios finales:** tutores, coordinadores y Silvia (administración). La UI va en español.
 - **Fase 2 (fuera del MVP):** reportes PDF con IA para apoderados, asistencia.
@@ -134,8 +135,8 @@ Backend en Spring Boot 4.1.2 (PrismaBack#53, mergeado). Rebanada de login en PR:
 | Módulo | Backend | Frontend |
 |---|---|---|
 | security / login (Google, `/me`, logout, 401, CSRF) | ✅ (PR #55) | ✅ login, layout, sesión (PR #37) |
-| catalog (áreas, cursos, tipos de examen) | ✅ áreas y cursos de solo lectura; tipos de examen crear/editar | ✅ áreas y cursos (solo lectura), tipos de examen ← **siguiente: carreras** |
-| users (gestión de usuarios y roles) | 🟡 entidades + seed (admin y Silvia) | ❌ |
+| catalog (áreas, cursos, tipos de examen, carreras) | ✅ áreas y cursos de solo lectura; tipos de examen y carreras administrables | ✅ pestañas de Catálogo |
+| users (gestión de usuarios y roles) | 🟡 en PR (PrismaBack#64) | 🟡 en PR (PrismaFront#46) |
 | academic, students, tutoring, exams, imports, goals, logbook, dashboards | ❌ (el esquema ya existe en V1) | ❌ |
 
 Pendientes de esquema:
@@ -173,6 +174,7 @@ Resueltos el 2026-11-09: Spring Boot → 4.1.x · se mantiene JavaScript · dos 
 ---
 
 ## Historial de cambios
+- **2026-11-10** — (cat. C) Usuarios: el Admin permanente no se puede desactivar ni perder el rol `ADMIN` (409), lo que reemplaza la regla "no desactivar al último admin activo" de REQ-SECURITY-02. El correo es único sin distinguir mayúsculas y se guarda en minúsculas. La respuesta trae `permanentAdmin`. Reactivar a un usuario ya activo responde 409.
 - **2026-11-10** — (cat. C) Carreras: CRUD con desactivación (soft-delete) y reactivación (`POST .../reactivate`), nombre único sin distinguir mayúsculas (409), pestaña "Carreras" dentro de "Catálogo" (no ítem de menú propio como en el prototipo).
 - **2026-11-10** — (cat. C) Tipos de examen: se crean/editan con nombre y cursos en un solo envío (`POST`/`PUT` con `courseIds`, reemplaza a `PUT .../courses`), nombre único sin distinguir mayúsculas (409), sin desactivación (se elimina su `DELETE`).
 - **2026-11-10** — (cat. C) Áreas y cursos pasan a ser datos fijos de solo lectura: se eliminan sus endpoints de crear/editar/desactivar (REQ-CATALOG-01/02 quedan como consulta). Los tipos de examen siguen siendo administrables (REQ-CATALOG-03).
