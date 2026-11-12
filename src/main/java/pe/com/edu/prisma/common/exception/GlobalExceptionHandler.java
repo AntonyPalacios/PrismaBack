@@ -2,7 +2,6 @@ package pe.com.edu.prisma.common.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
-import java.util.UUID;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,19 +10,25 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
-import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
+import pe.com.edu.prisma.common.logging.EndpointCall;
+import pe.com.edu.prisma.common.logging.TraceIds;
 
 /**
  * Every response body here is RFC 7807 (ProblemDetail). The {@code detail}
  * field is what a tutor/admin — not a developer — reads, so it is always
  * plain language, never an exception message or a stack trace.
  *
- * Every response also carries an {@code errorId}: a UUID logged alongside
- * the real exception. If the end user reports "me salió un error", ask for
- * that id and grep the logs for it instead of trying to reproduce blind.
+ * Every response also carries an {@code errorId}: the request's traceId,
+ * which is printed on every log line of that request. If the end user
+ * reports "me salió un error", ask for that id and search the log for it.
+ *
+ * This is the only place that logs errors, once per request (agreement 4.2
+ * "Logs"): 500 at ERROR with the stack trace, 403/409 at WARN, and the
+ * everyday 400/404/405 at INFO so they don't bury what matters.
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -34,32 +39,33 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ProblemDetail handleNotFound(ResourceNotFoundException ex, HttpServletRequest request) {
-        String errorId = logAndTag(ex, request, HttpStatus.NOT_FOUND);
-        return problem(HttpStatus.NOT_FOUND, ex.getMessage(), errorId);
+        log.info("404 on {}: {}", describe(request), ex.getMessage());
+        return problem(HttpStatus.NOT_FOUND, ex.getMessage());
     }
 
     @ExceptionHandler(BusinessRuleException.class)
     public ProblemDetail handleBusinessRule(BusinessRuleException ex, HttpServletRequest request) {
-        String errorId = logAndTag(ex, request, HttpStatus.CONFLICT);
-        return problem(HttpStatus.CONFLICT, ex.getMessage(), errorId);
+        log.warn("409 on {}: {}", describe(request), ex.getMessage());
+        return problem(HttpStatus.CONFLICT, ex.getMessage());
     }
 
     @ExceptionHandler(AccessDeniedException.class)
     public ProblemDetail handleAccessDenied(AccessDeniedException ex, HttpServletRequest request) {
-        String errorId = logAndTag(ex, request, HttpStatus.FORBIDDEN);
-        return problem(HttpStatus.FORBIDDEN, "No tienes permiso para realizar esta acción.", errorId);
+        log.warn("403 on {}: {}", describe(request), ex.getMessage());
+        return problem(HttpStatus.FORBIDDEN, "No tienes permiso para realizar esta acción.");
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ProblemDetail handleValidation(MethodArgumentNotValidException ex, HttpServletRequest request) {
-        String errorId = logAndTag(ex, request, HttpStatus.BAD_REQUEST);
+        // only the field names: the exception message carries the rejected values (personal data)
+        log.info("400 on {}: invalid fields {}", describe(request), invalidFieldNames(ex));
         String detail = ex.getBindingResult().getFieldErrors().stream()
                 .map(FieldError::getDefaultMessage)
                 .collect(Collectors.joining(" "));
         if (detail.isBlank()) {
             detail = "Revisa los datos ingresados: algunos campos no son válidos.";
         }
-        ProblemDetail problem = problem(HttpStatus.BAD_REQUEST, detail, errorId);
+        ProblemDetail problem = problem(HttpStatus.BAD_REQUEST, detail);
         problem.setProperty("fields", fieldErrors(ex));
         return problem;
     }
@@ -69,16 +75,16 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ProblemDetail handleMethodNotAllowed(HttpRequestMethodNotSupportedException ex,
             HttpServletRequest request) {
-        String errorId = logAndTag(ex, request, HttpStatus.METHOD_NOT_ALLOWED);
-        return problem(HttpStatus.METHOD_NOT_ALLOWED, "Esta operación no está disponible.", errorId);
+        log.info("405 on {}", describe(request));
+        return problem(HttpStatus.METHOD_NOT_ALLOWED, "Esta operación no está disponible.");
     }
 
     // A URL that maps to nothing (e.g. the removed PUT /exam-types/{id}/courses):
     // a plain 404, never the generic 500 below.
     @ExceptionHandler(NoResourceFoundException.class)
     public ProblemDetail handleNoResource(NoResourceFoundException ex, HttpServletRequest request) {
-        String errorId = logAndTag(ex, request, HttpStatus.NOT_FOUND);
-        return problem(HttpStatus.NOT_FOUND, "No encontramos lo que buscas.", errorId);
+        log.info("404 on {}: no such endpoint", describe(request));
+        return problem(HttpStatus.NOT_FOUND, "No encontramos lo que buscas.");
     }
 
     // Catch-all: anything not handled above is a bug, not an expected
@@ -86,22 +92,24 @@ public class GlobalExceptionHandler {
     // the real exception (with stack trace) goes to the log at ERROR.
     @ExceptionHandler(Exception.class)
     public ProblemDetail handleUnexpected(Exception ex, HttpServletRequest request) {
-        String errorId = UUID.randomUUID().toString();
-        log.error("[{}] Unhandled exception on {} {}", errorId, request.getMethod(), request.getRequestURI(), ex);
-        return problem(HttpStatus.INTERNAL_SERVER_ERROR, GENERIC_DETAIL, errorId);
+        log.error("500 on {}: unhandled exception", describe(request), ex);
+        return problem(HttpStatus.INTERNAL_SERVER_ERROR, GENERIC_DETAIL);
     }
 
-    private ProblemDetail problem(HttpStatus status, String detail, String errorId) {
+    private ProblemDetail problem(HttpStatus status, String detail) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
-        problem.setProperty("errorId", errorId);
+        problem.setProperty("errorId", TraceIds.current());
         return problem;
     }
 
-    private String logAndTag(Exception ex, HttpServletRequest request, HttpStatus status) {
-        String errorId = UUID.randomUUID().toString();
-        log.warn("[{}] {} on {} {}: {}", errorId, status, request.getMethod(), request.getRequestURI(),
-                ex.getMessage());
-        return errorId;
+    /** "DELETE /api/v1/users/5 (UserController#deactivate args={id=5})"; no endpoint part if the request never reached a controller. */
+    private static String describe(HttpServletRequest request) {
+        String route = request.getMethod() + " " + request.getRequestURI();
+        return EndpointCall.from(request).map(call -> route + " (" + call + ")").orElse(route);
+    }
+
+    private static List<String> invalidFieldNames(MethodArgumentNotValidException ex) {
+        return ex.getBindingResult().getFieldErrors().stream().map(FieldError::getField).distinct().toList();
     }
 
     private List<String> fieldErrors(MethodArgumentNotValidException ex) {

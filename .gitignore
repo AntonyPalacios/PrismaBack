@@ -4,3 +4,4 @@ target/
 .idea/
 .vscode/
 HELP.md
+logs/

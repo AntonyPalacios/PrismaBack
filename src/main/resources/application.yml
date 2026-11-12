@@ -60,6 +60,24 @@ springdoc:
     operations-sorter: method
   writer-with-order-by-keys: false
 
+# Every request gets a traceId (no exporter: it only feeds the log lines and
+# the errorId of error responses). 1.0 = never skip a request.
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+
 logging:
   level:
     pe.com.edu.prisma: INFO
+  file:
+    name: ${LOG_FILE_NAME:logs/prisma.log}
+  logback:
+    rollingpolicy:
+      # a new file every day, or sooner when the current one reaches 10 MB
+      max-file-size: 10MB
+      max-history: 30
+      total-size-cap: 1GB
+  pattern:
+    # printed on every line of a request; grep the errorId as "trace=<id>"
+    correlation: "[trace=%X{traceId:-} user=%X{userId:-}] "

@@ -4,6 +4,8 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pe.com.edu.prisma.catalog.Course;
@@ -21,6 +23,8 @@ import pe.com.edu.prisma.common.exception.ResourceNotFoundException;
 @Service
 @Transactional(readOnly = true)
 public class ExamTypeServiceImpl implements ExamTypeService {
+
+    private static final Logger log = LoggerFactory.getLogger(ExamTypeServiceImpl.class);
 
     static final String DUPLICATE_NAME = "Ya existe un tipo de examen con ese nombre.";
     static final String UNKNOWN_COURSE = "Uno o más cursos seleccionados no existen.";
@@ -59,7 +63,9 @@ public class ExamTypeServiceImpl implements ExamTypeService {
         ExamType examType = new ExamType();
         examType.setName(name);
         examType.setCourses(resolveCourses(request.courseIds()));
-        return examTypeMapper.toDto(examTypeRepository.save(examType));
+        ExamType saved = examTypeRepository.save(examType);
+        log.info("Exam type created: examTypeId={} courseIds={}", saved.getId(), request.courseIds());
+        return examTypeMapper.toDto(saved);
     }
 
     @Override
@@ -73,6 +79,7 @@ public class ExamTypeServiceImpl implements ExamTypeService {
         examType.setName(name);
         // full replace, never incremental: the new set is the whole truth
         examType.setCourses(resolveCourses(request.courseIds()));
+        log.info("Exam type updated: examTypeId={} courseIds={}", id, request.courseIds());
         return examTypeMapper.toDto(examType);
     }
 

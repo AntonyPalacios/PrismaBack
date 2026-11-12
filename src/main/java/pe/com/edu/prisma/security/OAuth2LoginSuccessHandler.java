@@ -4,6 +4,8 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
@@ -17,6 +19,8 @@ import pe.com.edu.prisma.config.AppProperties;
  */
 @Component
 public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(OAuth2LoginSuccessHandler.class);
 
     private final JwtService jwtService;
     private final AppProperties appProperties;
@@ -33,6 +37,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
         var prismaUser = ((PrismaOidcUser) authentication.getPrincipal()).getUser();
 
         String token = jwtService.issueToken(prismaUser.getId(), prismaUser.getEmail());
+        log.info("Login succeeded: userId={}", prismaUser.getId());
 
         Cookie cookie = new Cookie(appProperties.jwt().cookieName(), token);
         cookie.setHttpOnly(true);
