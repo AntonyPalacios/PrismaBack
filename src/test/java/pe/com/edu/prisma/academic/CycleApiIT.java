@@ -6,6 +6,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -13,6 +14,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,13 +29,14 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import pe.com.edu.prisma.config.ContainersConfig;
 
 /**
- * Academic cycles (REQ-ACADEMIC-01): list, create and edit. No cycle is
+ * Academic cycles (REQ-ACADEMIC-01): list, create, edit, status and delete. No cycle is
  * seeded and nothing else uses them yet, so every test starts from an
  * empty table and is free to pick its own dates.
  */
@@ -48,9 +52,14 @@ class CycleApiIT {
     @Autowired
     private CycleRepository cycleRepository;
 
+    @Autowired
+    private JdbcTemplate jdbc;
+
+    // plain SQL: soft-deleted cycles are invisible to the repository but must go too
     @BeforeEach
-    void emptyTable() {
-        cycleRepository.deleteAll();
+    void emptyTables() {
+        jdbc.update("DELETE FROM stage");
+        jdbc.update("DELETE FROM cycle");
     }
 
     private static String body(String name, String startDate, String endDate) {
@@ -229,17 +238,218 @@ class CycleApiIT {
     }
 
     @Test
-    void cyclesCannotBeDeleted() throws Exception {
+    void aDeletedCycleDisappearsAndFreesItsNameAndDates(CapturedOutput output) throws Exception {
         long id = createdId("2026-I", "2026-03-01", null);
 
-        asAdmin(delete("/api/v1/cycles/" + id)).andExpect(status().isMethodNotAllowed());
-        assertThat(cycleRepository.existsById(id)).isTrue();
+        asAdmin(delete("/api/v1/cycles/" + id)).andExpect(status().isNoContent());
+
+        // for the API it no longer exists
+        asAdmin(get("/api/v1/cycles/" + id)).andExpect(status().isNotFound());
+        asAdmin(get("/api/v1/cycles")).andExpect(jsonPath("$.length()").value(0));
+        asAdmin(put("/api/v1/cycles/" + id).content(body("2026-I", "2026-03-01", null)))
+                .andExpect(status().isNotFound());
+        asAdmin(delete("/api/v1/cycles/" + id)).andExpect(status().isNotFound());
+
+        // the same name and the same dates can be used again (it was open-ended: it blocked everything after)
+        create("2026-i", "2026-03-01", "2026-07-31").andExpect(status().isCreated());
+
+        // soft delete: the row is still in the table, and the log line is its trace
+        assertThat(jdbc.queryForObject("SELECT deleted FROM cycle WHERE id = ?", Boolean.class, id)).isTrue();
+        assertThat(output.getOut()).contains("Cycle deleted: cycleId=" + id + " name=\"2026-I\" status=PLANNED");
+    }
+
+    @Test
+    void aCycleCanBeDeletedInAnyStatusAndAnActiveOneFreesTheActiveSlot() throws Exception {
+        long active = activeId("Activo", day(-10), day(10));
+        long next = createdId("Siguiente", day(-40), day(-11));
+        changeStatus(next, "ACTIVE", null).andExpect(status().isConflict());
+
+        asAdmin(delete("/api/v1/cycles/" + active)).andExpect(status().isNoContent());
+        changeStatus(next, "ACTIVE", null).andExpect(status().isOk());
+
+        changeStatus(next, "CLOSED", null).andExpect(status().isOk());
+        asAdmin(delete("/api/v1/cycles/" + next)).andExpect(status().isNoContent());
+        asAdmin(get("/api/v1/cycles")).andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void aCycleWithStagesCannotBeDeleted() throws Exception {
+        long id = createdId("2026-I", "2026-03-01", null);
+        jdbc.update("INSERT INTO stage (cycle_id, name, sequence) VALUES (?, 'Etapa 1', 1)", id);
+
+        asAdmin(delete("/api/v1/cycles/" + id))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail")
+                        .value("Este ciclo tiene etapas, así que no se puede eliminar. Elimina primero sus etapas."));
+        asAdmin(get("/api/v1/cycles/" + id)).andExpect(status().isOk());
+
+        asAdmin(delete("/api/v1/cycles/999999")).andExpect(status().isNotFound());
+    }
+
+    // ---- status changes: PLANNED → ACTIVE → CLOSED ----
+
+    /** "Today" as the backend sees it (ClockConfig). */
+    private static LocalDate today() {
+        return LocalDate.now(ZoneId.of("America/Lima"));
+    }
+
+    private static String day(int offsetFromToday) {
+        return today().plusDays(offsetFromToday).toString();
+    }
+
+    private ResultActions changeStatus(long id, String status, Boolean confirm) throws Exception {
+        String body = "{\"status\":" + quote(status) + (confirm == null ? "" : ",\"confirm\":" + confirm) + "}";
+        return asAdmin(patch("/api/v1/cycles/" + id + "/status").content(body));
+    }
+
+    private long activeId(String name, String startDate, String endDate) throws Exception {
+        long id = createdId(name, startDate, endDate);
+        changeStatus(id, "ACTIVE", null).andExpect(status().isOk());
+        return id;
+    }
+
+    @Test
+    void aStartedCycleIsActivatedAndThenClosedKeepingItsEndDate(CapturedOutput output) throws Exception {
+        long id = createdId("Pasado", day(-30), day(-1));
+
+        changeStatus(id, "ACTIVE", null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ACTIVE"));
+        // the end date already passed: no confirmation needed, and it stays as it is
+        changeStatus(id, "CLOSED", null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CLOSED"))
+                .andExpect(jsonPath("$.endDate").value(day(-1)));
+
+        assertThat(output.getOut())
+                .contains("Cycle status changed: cycleId=" + id + " from=PLANNED to=ACTIVE")
+                .contains("Cycle status changed: cycleId=" + id + " from=ACTIVE to=CLOSED");
+    }
+
+    @Test
+    void aCycleStartingTodayCanBeActivatedAndClosedOnItsLastDay() throws Exception {
+        long id = createdId("Hoy", day(0), day(0));
+
+        changeStatus(id, "ACTIVE", null).andExpect(status().isOk());
+        changeStatus(id, "CLOSED", null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.endDate").value(day(0)));
+    }
+
+    @Test
+    void aCycleWithAFutureStartDateCannotBeActivated() throws Exception {
+        long id = createdId("Futuro", day(1), null);
+
+        changeStatus(id, "ACTIVE", null)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value(containsString("su fecha de inicio es futura")))
+                .andExpect(jsonPath("$.requiresConfirmation").doesNotExist());
+        asAdmin(get("/api/v1/cycles/" + id)).andExpect(jsonPath("$.status").value("PLANNED"));
+    }
+
+    @Test
+    void onlyOneCycleCanBeActive() throws Exception {
+        activeId("Primero", day(-60), day(-31));
+        long second = createdId("Segundo", day(-30), null);
+
+        changeStatus(second, "ACTIVE", null)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("Ya hay otro ciclo activo. Ciérralo antes de activar este."));
+    }
+
+    @Test
+    void statusOnlyMovesForwardOneStepAtATime() throws Exception {
+        String forwardOnly = "Un ciclo solo puede avanzar: de planificado a activo y de activo a cerrado.";
+        long id = createdId("Ciclo", day(-30), day(-1));
+
+        changeStatus(id, "CLOSED", true).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value(forwardOnly));
+        changeStatus(id, "PLANNED", null).andExpect(status().isConflict());
+
+        changeStatus(id, "ACTIVE", null).andExpect(status().isOk());
+        changeStatus(id, "ACTIVE", null).andExpect(status().isConflict());
+        changeStatus(id, "PLANNED", null).andExpect(status().isConflict());
+
+        changeStatus(id, "CLOSED", null).andExpect(status().isOk());
+        changeStatus(id, "ACTIVE", null).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value(forwardOnly));
+        changeStatus(id, "CLOSED", null).andExpect(status().isConflict());
+    }
+
+    @Test
+    void aCycleWithoutEndDateCannotBeClosedEvenIfConfirmed() throws Exception {
+        long id = activeId("Sin fin", day(-10), null);
+
+        changeStatus(id, "CLOSED", true)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value(containsString("no tiene fecha de fin")))
+                .andExpect(jsonPath("$.detail").value(containsString("el siguiente ciclo solo podrá empezar después")))
+                .andExpect(jsonPath("$.requiresConfirmation").doesNotExist());
+        asAdmin(get("/api/v1/cycles/" + id)).andExpect(jsonPath("$.status").value("ACTIVE"));
+
+        // once the admin sets the end date, it closes
+        asAdmin(put("/api/v1/cycles/" + id).content(body("Sin fin", day(-10), day(-1)))).andExpect(status().isOk());
+        changeStatus(id, "CLOSED", null).andExpect(status().isOk());
+    }
+
+    @Test
+    void closingBeforeTheEndDateNeedsConfirmationAndMovesTheEndDateToToday() throws Exception {
+        long id = activeId("En curso", day(-10), day(10));
+
+        // without confirmation nothing changes, and the client is told to ask
+        changeStatus(id, "CLOSED", null)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.requiresConfirmation").value(true))
+                .andExpect(jsonPath("$.detail").value(containsString("La fecha de fin pasará a ser hoy")));
+        changeStatus(id, "CLOSED", false).andExpect(status().isConflict());
+        asAdmin(get("/api/v1/cycles/" + id))
+                .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.endDate").value(day(10)));
+
+        changeStatus(id, "CLOSED", true)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CLOSED"))
+                .andExpect(jsonPath("$.endDate").value(day(0)));
+
+        // the days it gave up are free for the next cycle
+        create("Siguiente", day(1), null).andExpect(status().isCreated());
+    }
+
+    @Test
+    void aCycleThatHasNotStartedCannotBeClosed() throws Exception {
+        long id = activeId("Movido", day(-1), day(30));
+        // an active cycle can still be edited: its start is pushed into the future
+        asAdmin(put("/api/v1/cycles/" + id).content(body("Movido", day(5), day(30)))).andExpect(status().isOk());
+
+        changeStatus(id, "CLOSED", true)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail")
+                        .value("Este ciclo aún no empieza, así que no se puede cerrar. Corrige su fecha de inicio."));
+    }
+
+    @Test
+    void invalidStatusRequestsAnswer400Or404() throws Exception {
+        long id = createdId("Ciclo", day(-30), day(-1));
+
+        asAdmin(patch("/api/v1/cycles/" + id + "/status").content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Indica el nuevo estado del ciclo."));
+        // a value that can't even be read is a 400 too, never a 500
+        changeStatus(id, "ARCHIVED", null)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value(containsString("No pudimos leer los datos enviados")));
+        create("Fecha rota", "no-es-fecha", null).andExpect(status().isBadRequest());
+
+        changeStatus(999999, "ACTIVE", null).andExpect(status().isNotFound());
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"TUTOR", "COORDINADOR"})
     void onlyAdminsWriteButEveryRoleReads(String role) throws Exception {
         long id = createdId("2026-I", "2026-03-01", null);
+        as(role, patch("/api/v1/cycles/" + id + "/status").content("{\"status\":\"ACTIVE\"}"))
+                .andExpect(status().isForbidden());
+        as(role, delete("/api/v1/cycles/" + id)).andExpect(status().isForbidden());
 
         as(role, get("/api/v1/cycles")).andExpect(status().isOk());
         as(role, get("/api/v1/cycles/" + id)).andExpect(status().isOk());

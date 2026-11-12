@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -47,6 +48,25 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleBusinessRule(BusinessRuleException ex, HttpServletRequest request) {
         log.warn("409 on {}: {}", describe(request), ex.getMessage());
         return problem(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    // Valid, but the user must accept a consequence first: same 409, plus a
+    // flag so the client asks and repeats the request with confirm=true.
+    @ExceptionHandler(ConfirmationRequiredException.class)
+    public ProblemDetail handleConfirmationRequired(ConfirmationRequiredException ex, HttpServletRequest request) {
+        log.info("409 on {}: confirmation required", describe(request));
+        ProblemDetail problem = problem(HttpStatus.CONFLICT, ex.getMessage());
+        problem.setProperty("requiresConfirmation", true);
+        return problem;
+    }
+
+    // A body that can't be read at all (broken JSON, a date like "abc", an
+    // unknown status): a 400, never the generic 500 below.
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ProblemDetail handleUnreadableBody(HttpMessageNotReadableException ex, HttpServletRequest request) {
+        // no exception message: it quotes the body that was sent
+        log.info("400 on {}: unreadable request body", describe(request));
+        return problem(HttpStatus.BAD_REQUEST, "No pudimos leer los datos enviados. Revisa el formato e inténtalo de nuevo.");
     }
 
     @ExceptionHandler(AccessDeniedException.class)
