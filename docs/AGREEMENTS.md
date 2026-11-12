@@ -158,7 +158,7 @@ Sistema Prisma/
 
 ## 5. Estado actual (2026-11-11)
 
-Backend en Spring Boot 4.1.2. Login, catálogo, usuarios y logs del backend están mergeados en `main`. Rebanada en curso: activar y cerrar etapas.
+Backend en Spring Boot 4.1.2. Login, catálogo, usuarios y logs del backend están mergeados en `main`. Rebanada en curso: alumnos (listar, buscar, registrar y editar).
 
 | Módulo | Backend | Frontend |
 |---|---|---|
@@ -208,9 +208,9 @@ Resueltos el 2026-11-09: Spring Boot → 4.1.x · se mantiene JavaScript · dos 
 ---
 
 ## Historial de cambios
-- **2026-11-12** — (cat. C) Alumnos: `COORDINADOR` puede consultarlos y buscarlos pero no registrarlos ni editarlos (REQ-STUDENTS-01 solo nombraba a ADMIN y TUTOR); el DNI acepta de 8 a 12 letras o números; el listado va sin paginación y, por ahora, sin tutor ni etapa (llegan con matrícula y tutorías).
 - **2026-11-12** — (cat. D) Docker (PrismaBack#81, PrismaFront#63): `Dockerfile` por repo y `docker-compose.full.yml` en PrismaBack para levantar todo con solo Docker en `http://localhost:8080`, con Caddy como única entrada (mismo origen para la cookie y el CSRF). Publicar imágenes en GHCR queda para la rebanada de CD.
 - **2026-11-12** — (cat. D) CI con GitHub Actions en PrismaBack y PrismaFront (PrismaBack#79, PrismaFront#61): corre en PRs y en `main`, cancela corridas viejas del mismo PR, omite los cambios solo de documentación y `main` exige el check en verde para mergear.
+- **2026-11-12** — (cat. C) Alumnos: `COORDINADOR` puede consultarlos y buscarlos pero no registrarlos ni editarlos (REQ-STUDENTS-01 solo nombraba a ADMIN y TUTOR); el DNI acepta de 8 a 12 letras o números; el listado va sin paginación y, por ahora, sin tutor ni etapa (llegan con matrícula y tutorías).
 - **2026-11-12** — (cat. C) Etapas, cambio de estado: una sola etapa `ACTIVE` por ciclo; se activa solo con el ciclo `ACTIVE` y la fecha de inicio ya llegada; se cierra solo si ya empezó, tiene fecha de fin y esta no es futura (el sistema nunca la cambia; para cerrar antes, el usuario corrige la fecha). El cierre anticipado del ciclo conserva su regla (fecha de fin al día del cierre, con confirmación).
 - **2026-11-12** — (cat. C) Etapas: tienen los mismos estados que el ciclo y nacen `PLANNED`; nombre único dentro del ciclo; fechas siempre dentro de las del ciclo y sin solaparse; la fecha de fin la pone siempre el usuario; en un ciclo cerrado no se crean ni editan; cerrar un ciclo exige que todas sus etapas estén `CLOSED` (reemplaza el cierre en cascada de REQ-ACADEMIC-01/02). La etapa vigente se define por fechas (la de hoy; si no, la que empezó más recientemente), sin importar estados.
 - **2026-11-11** — (cat. C) Ciclos y etapas se pueden eliminar (borrado lógico, `DELETE` → 204, solo ADMIN), para que un error de fechas no obligue a tocar la base de datos: un ciclo sin etapas, en cualquier estado; una etapa sin matrículas ni exámenes, también en ciclos cerrados (con la rebanada de etapas). Un ciclo eliminado no se lista ni se recupera y deja libres su nombre, sus fechas y el lugar de ciclo activo. Reemplaza la regla "los ciclos nunca se eliminan" de REQ-ACADEMIC-01.
