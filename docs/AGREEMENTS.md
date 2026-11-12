@@ -91,6 +91,31 @@ Sistema Prisma/
 - DTOs como `record` sin Lombok. Lombok solo en entidades JPA.
 - Mapeo con **MapStruct**; campos derivados vía `@Mapping(expression=…)` o métodos default.
 - **Errores:** RFC 7807 Problem Details. El `detail` va en lenguaje simple para el usuario final y cada error trae un id para rastrearlo en el log. Nunca se exponen stack traces.
+- **Logs** (SLF4J + Logback, configurados en `application.yml`, sin `logback.xml` salvo que haga falta):
+  - **Destino:** consola + archivo `logs/prisma.log` con rotación diaria o cada 10 MB, 30 días de historial y tope total de 1 GB. `logs/` va en `.gitignore`.
+  - **Correlación:** cada petición lleva un `traceId` (Micrometer Tracing) en el MDC, presente en todas sus líneas; el `errorId` que ve el usuario es ese mismo `traceId`. El MDC lleva también el `userId` (el id, nunca el correo).
+  - **Quién registra qué:**
+    - Un **aspecto (AOP) sobre los `@RestController`** captura el endpoint (`Controller#método`) y los argumentos saneados y los deja en el contexto; en DEBUG registra endpoint y duración. No registra errores.
+    - El **`GlobalExceptionHandler` es el único que registra errores**, una sola vez, con el contexto del aspecto. Nunca se registra y relanza una excepción.
+    - No se usan `HandlerInterceptor` para logging.
+  - **Niveles:**
+    - `ERROR`: bug o fallo inesperado, siempre con stack trace.
+    - `WARN`: rechazos esperados que conviene revisar (login rechazado, 403, 409).
+    - `INFO`: eventos de negocio, una línea por acción (login, usuario desactivado, ciclo activado, lote de importación confirmado con sus conteos).
+    - `DEBUG`: detalle de desarrollo (SQL, duración por endpoint), solo en el perfil `dev`.
+    - 400 y 404 no van en `WARN`.
+  - **Datos personales:** se registra el **id** cuando existe (`studentId=123`). Los alumnos son menores de edad y aplica la Ley 29733. La máscara parcial se usa **solo cuando no hay id** (filas de importación que aún no tienen alumno, login rechazado con un correo no registrado):
+
+    | Dato | Regla | Ejemplo |
+    |---|---|---|
+    | Nombres y apellidos | Primeras 3 letras de cada palabra | `Antony Palacios` → `Ant*** Pal***` |
+    | DNI | Solo los 3 últimos dígitos | `72345678` → `*****678` |
+    | Correo | Primera letra del usuario y dominio completo | `usuario@gmail.com` → `u***@gmail.com` |
+    | Puntajes y notas | Nunca se registran | — |
+    | JWT, cookies, tokens OAuth/CSRF | Nunca, ni enmascarados | — |
+
+  - **Saneo de argumentos** (lista blanca): ids, enums, fechas y números van tal cual; las colecciones solo con su tamaño; los archivos solo con nombre y tamaño; los campos marcados con `@Sensitive` se enmascaran según la tabla anterior.
+  - **Estilo:** mensajes en inglés, parametrizados (`log.info("... {}", x)`), con la excepción como último argumento. Los logs no reemplazan a la auditoría en base de datos.
 - **Auth:** solo Google OAuth2. El JWT viaja en cookie `httpOnly` + `Secure`, nunca en la URL ni en `localStorage`. El registro es administrado: solo entran correos que ya existen como `app_user` activo. CSRF con cookie legible + header `X-XSRF-TOKEN`.
 - **Autorización** con `@PreAuthorize` en cada endpoint de escritura. El Tutor solo accede a sus alumnos asignados.
 - **Auditoría** `created_by/at` y `updated_by/at` automática en tablas mutables.
@@ -174,6 +199,7 @@ Resueltos el 2026-11-09: Spring Boot → 4.1.x · se mantiene JavaScript · dos 
 ---
 
 ## Historial de cambios
+- **2026-11-11** — (cat. D) Acuerdo de logs del backend: archivo rotativo, `traceId` como `errorId`, aspecto en controllers + handler global como único registrador de errores, niveles, ids en lugar de datos personales y máscara parcial solo cuando no hay id.
 - **2026-11-10** — (cat. C) Usuarios: el Admin permanente no se puede desactivar ni perder el rol `ADMIN` (409), lo que reemplaza la regla "no desactivar al último admin activo" de REQ-SECURITY-02. El correo es único sin distinguir mayúsculas y se guarda en minúsculas. La respuesta trae `permanentAdmin`. Reactivar a un usuario ya activo responde 409.
 - **2026-11-10** — (cat. C) Carreras: CRUD con desactivación (soft-delete) y reactivación (`POST .../reactivate`), nombre único sin distinguir mayúsculas (409), pestaña "Carreras" dentro de "Catálogo" (no ítem de menú propio como en el prototipo).
 - **2026-11-10** — (cat. C) Tipos de examen: se crean/editan con nombre y cursos en un solo envío (`POST`/`PUT` con `courseIds`, reemplaza a `PUT .../courses`), nombre único sin distinguir mayúsculas (409), sin desactivación (se elimina su `DELETE`).
