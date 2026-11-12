@@ -12,6 +12,9 @@ public interface CycleRepository extends JpaRepository<Cycle, Long> {
 
     boolean existsByNameIgnoreCaseAndIdNot(String name, Long id);
 
+    // only one cycle can be ACTIVE at a time
+    boolean existsByStatus(CycleStatus status);
+
     /**
      * Is there another cycle sharing at least one day with [start, end]?
      * Both ends are inclusive. Pass {@code excludedId = null} when creating.

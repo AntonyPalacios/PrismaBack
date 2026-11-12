@@ -11,7 +11,7 @@
 Web app para **Academia Prisma**, academia preuniversitaria en Perú que prepara alumnos para el examen de admisión PUCP.
 Los tutores (psicólogos) acompañan a los alumnos con simulacros semanales, siguen la evolución de sus puntajes, fijan metas de mejora y registran sesiones en una bitácora.
 
-- **Organización del tiempo:** Ciclo → Etapas. Un solo ciclo `ACTIVE` a la vez. Los ciclos tienen nombre único sin distinguir mayúsculas, sus fechas no se solapan entre sí (un ciclo sin fecha de fin cuenta como abierto hacia adelante, y dos ciclos no pueden compartir ni un día) y nunca se eliminan. Los alumnos se reagrupan entre tutores y el historial de quién tuteló a quién es **inmutable** (append-only).
+- **Organización del tiempo:** Ciclo → Etapas. Un solo ciclo `ACTIVE` a la vez. Los ciclos tienen nombre único sin distinguir mayúsculas, sus fechas no se solapan entre sí (un ciclo sin fecha de fin cuenta como abierto hacia adelante, y dos ciclos no pueden compartir ni un día) y nunca se eliminan. Sus estados solo avanzan (`PLANNED → ACTIVE → CLOSED`): un ciclo se activa solo si su fecha de inicio ya llegó (no futura) y no hay otro `ACTIVE`; un ciclo cerrado siempre tiene fecha de fin: no se puede cerrar un ciclo sin fecha de fin (el Admin debe definirla antes, y se le avisa que la elija bien porque el siguiente ciclo solo puede empezar después de ella); si se cierra antes de su fecha de fin, el sistema la fija en el día del cierre, previa confirmación del usuario; no se puede cerrar un ciclo que aún no empieza (hay que corregir su fecha de inicio). Los alumnos se reagrupan entre tutores y el historial de quién tuteló a quién es **inmutable** (append-only).
 - **Dominio de exámenes:** 2 áreas (Lectura, Matemática) y 6 cursos (Lectura, Números y Operaciones, Álgebra, Geometría, Trigonometría, Estadística). 3 tipos de examen:
   - Ciencias: sin Estadística.
   - Letras: todos los cursos.
@@ -155,7 +155,7 @@ Sistema Prisma/
 
 ## 5. Estado actual (2026-11-11)
 
-Backend en Spring Boot 4.1.2. Login, catálogo, usuarios y logs del backend están mergeados en `main`. Rebanada en curso: ciclos académicos (listar, crear y editar).
+Backend en Spring Boot 4.1.2. Login, catálogo, usuarios y logs del backend están mergeados en `main`. Rebanada en curso: activar y cerrar ciclos.
 
 | Módulo | Backend | Frontend |
 |---|---|---|
@@ -163,13 +163,13 @@ Backend en Spring Boot 4.1.2. Login, catálogo, usuarios y logs del backend est�
 | catalog (áreas, cursos, tipos de examen, carreras) | ✅ áreas y cursos de solo lectura; tipos de examen y carreras administrables | ✅ pestañas de Catálogo |
 | users (gestión de usuarios y roles) | ✅ | ✅ pantalla Usuarios |
 | logs (archivo rotativo, `traceId` como `errorId`, aspecto en controllers, máscaras) | ✅ (PrismaBack#69) | — (no aplica) |
-| academic (ciclos y etapas) | 🟡 ciclos: listar, crear y editar en curso. Falta activar/cerrar, ciclo actual y etapas | 🟡 pantalla Ciclos en curso |
+| academic (ciclos y etapas) | 🟡 ciclos: listar, crear y editar ✅ (PrismaBack#71); activar/cerrar en curso. Falta ciclo actual (`GET …/current`, entra con la primera pantalla que lo use) y etapas | 🟡 pantalla Ciclos ✅ (PrismaFront#53); activar/cerrar en curso |
 | students, tutoring, exams, imports, goals, logbook, dashboards | ❌ (el esquema ya existe en V1) | ❌ |
 
 Pendientes de esquema:
 - Seed del usuario "System" (para jobs automáticos).
 - Eliminar `stage.sequence`.
-- Evitar solapamiento de fechas en etapa (el de ciclo entra con la rebanada de ciclos).
+- Evitar solapamiento de fechas en etapa (el de ciclo ya está, V6).
 
 ---
 
@@ -201,6 +201,7 @@ Resueltos el 2026-11-09: Spring Boot → 4.1.x · se mantiene JavaScript · dos 
 ---
 
 ## Historial de cambios
+- **2026-11-11** — (cat. C) Ciclos, cambio de estado: no se activa un ciclo con fecha de inicio futura; un ciclo cerrado siempre queda con fecha de fin: sin fecha de fin no se puede cerrar (hay que definirla antes, con aviso de elegirla bien porque condiciona el inicio del siguiente ciclo); si se cierra antes de ella, se fija en el día del cierre previa confirmación; no se puede cerrar un ciclo que aún no empieza. `GET /cycles/current` se pospone hasta que una pantalla lo consuma.
 - **2026-11-11** — (cat. C) Ciclos: nombre único sin distinguir mayúsculas (409). Para el solapamiento, un ciclo sin fecha de fin cuenta como abierto hacia adelante y dos ciclos no pueden compartir ni un día. La pantalla "Ciclos" es solo para ADMIN aunque la API permita leer a todos los roles.
 - **2026-11-11** — (cat. D) Logs: el texto sin `@Sensitive` se registra tal cual (cortado a 80 caracteres); todo DTO o parámetro con datos personales debe marcarlos con `@Sensitive`.
 - **2026-11-11** — (cat. D) Acuerdo de logs del backend: archivo rotativo, `traceId` como `errorId`, aspecto en controllers + handler global como único registrador de errores, niveles, ids en lugar de datos personales y máscara parcial solo cuando no hay id.
