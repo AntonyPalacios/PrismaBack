@@ -12,6 +12,8 @@ import pe.com.edu.prisma.academic.Cycle;
 import pe.com.edu.prisma.academic.CycleRepository;
 import pe.com.edu.prisma.academic.CycleService;
 import pe.com.edu.prisma.academic.CycleStatus;
+import pe.com.edu.prisma.academic.StageRepository;
+import pe.com.edu.prisma.academic.StageStatus;
 import pe.com.edu.prisma.academic.dto.ChangeCycleStatusRequest;
 import pe.com.edu.prisma.academic.dto.CycleDto;
 import pe.com.edu.prisma.academic.dto.UpsertCycleRequest;
@@ -30,6 +32,11 @@ public class CycleServiceImpl implements CycleService {
     static final String CLOSED_NOT_EDITABLE = "Este ciclo está cerrado y ya no se puede editar.";
     static final String HAS_STAGES =
             "Este ciclo tiene etapas, así que no se puede eliminar. Elimina primero sus etapas.";
+    static final String STAGES_OUTSIDE =
+            "Hay etapas que quedarían fuera de las nuevas fechas del ciclo. "
+                    + "Corrige primero las fechas de esas etapas.";
+    static final String OPEN_STAGES =
+            "Este ciclo tiene etapas sin cerrar. Cierra todas sus etapas antes de cerrar el ciclo.";
     static final String FORWARD_ONLY =
             "Un ciclo solo puede avanzar: de planificado a activo y de activo a cerrado.";
     static final String ANOTHER_ACTIVE = "Ya hay otro ciclo activo. Ciérralo antes de activar este.";
@@ -55,11 +62,14 @@ public class CycleServiceImpl implements CycleService {
             Comparator.comparing(Cycle::getStartDate).thenComparing(Cycle::getId).reversed();
 
     private final CycleRepository cycleRepository;
+    private final StageRepository stageRepository;
     private final CycleMapper cycleMapper;
     private final Clock clock; // "today" in Lima (ClockConfig)
 
-    public CycleServiceImpl(CycleRepository cycleRepository, CycleMapper cycleMapper, Clock clock) {
+    public CycleServiceImpl(CycleRepository cycleRepository, StageRepository stageRepository,
+            CycleMapper cycleMapper, Clock clock) {
         this.cycleRepository = cycleRepository;
+        this.stageRepository = stageRepository;
         this.cycleMapper = cycleMapper;
         this.clock = clock;
     }
@@ -103,6 +113,11 @@ public class CycleServiceImpl implements CycleService {
             throw new BusinessRuleException(DUPLICATE_NAME);
         }
         rejectOverlap(request, id);
+        // a stage never starts before its cycle nor ends after it
+        LocalDate end = request.endDate() != null ? request.endDate() : OPEN_END;
+        if (stageRepository.existsOutside(id, request.startDate(), end)) {
+            throw new BusinessRuleException(STAGES_OUTSIDE);
+        }
 
         apply(cycle, name, request);
         log.info("Cycle updated: cycleId={} startDate={} endDate={}", id, cycle.getStartDate(), cycle.getEndDate());
@@ -132,7 +147,7 @@ public class CycleServiceImpl implements CycleService {
     @Transactional
     public void delete(Long id) {
         Cycle cycle = getOrThrow(id);
-        if (cycleRepository.countStages(id) > 0) {
+        if (stageRepository.existsByCycleId(id)) {
             throw new BusinessRuleException(HAS_STAGES);
         }
         cycle.setDeleted(true); // soft delete: from here on no query sees it
@@ -155,6 +170,10 @@ public class CycleServiceImpl implements CycleService {
     private void close(Cycle cycle, LocalDate today, boolean confirmed) {
         if (cycle.getStartDate().isAfter(today)) {
             throw new BusinessRuleException(NOT_STARTED_CLOSE);
+        }
+        // the system never closes stages on its own: the admin closes each one first
+        if (stageRepository.existsByCycleIdAndStatusNot(cycle.getId(), StageStatus.CLOSED)) {
+            throw new BusinessRuleException(OPEN_STAGES);
         }
         if (cycle.getEndDate() == null) {
             throw new BusinessRuleException(END_DATE_REQUIRED_TO_CLOSE);

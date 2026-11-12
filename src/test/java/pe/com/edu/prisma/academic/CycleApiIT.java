@@ -275,7 +275,7 @@ class CycleApiIT {
     @Test
     void aCycleWithStagesCannotBeDeleted() throws Exception {
         long id = createdId("2026-I", "2026-03-01", null);
-        jdbc.update("INSERT INTO stage (cycle_id, name, sequence) VALUES (?, 'Etapa 1', 1)", id);
+        jdbc.update("INSERT INTO stage (cycle_id, name, start_date) VALUES (?, 'Etapa 1', '2026-03-01')", id);
 
         asAdmin(delete("/api/v1/cycles/" + id))
                 .andExpect(status().isConflict())

@@ -15,10 +15,6 @@ public interface CycleRepository extends JpaRepository<Cycle, Long> {
     // only one cycle can be ACTIVE at a time
     boolean existsByStatus(CycleStatus status);
 
-    // a cycle can only be deleted while it has no stages (the stage module doesn't exist yet: plain SQL)
-    @Query(value = "select count(*) from stage where cycle_id = :cycleId", nativeQuery = true)
-    long countStages(@Param("cycleId") Long cycleId);
-
     /**
      * Is there another cycle sharing at least one day with [start, end]?
      * Both ends are inclusive. Pass {@code excludedId = null} when creating.
