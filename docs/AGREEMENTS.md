@@ -11,7 +11,7 @@
 Web app para **Academia Prisma**, academia preuniversitaria en Perú que prepara alumnos para el examen de admisión PUCP.
 Los tutores (psicólogos) acompañan a los alumnos con simulacros semanales, siguen la evolución de sus puntajes, fijan metas de mejora y registran sesiones en una bitácora.
 
-- **Organización del tiempo:** Ciclo → Etapas. Un solo ciclo `ACTIVE` a la vez. Los alumnos se reagrupan entre tutores y el historial de quién tuteló a quién es **inmutable** (append-only).
+- **Organización del tiempo:** Ciclo → Etapas. Un solo ciclo `ACTIVE` a la vez. Los ciclos tienen nombre único sin distinguir mayúsculas, sus fechas no se solapan entre sí (un ciclo sin fecha de fin cuenta como abierto hacia adelante, y dos ciclos no pueden compartir ni un día) y nunca se eliminan. Los alumnos se reagrupan entre tutores y el historial de quién tuteló a quién es **inmutable** (append-only).
 - **Dominio de exámenes:** 2 áreas (Lectura, Matemática) y 6 cursos (Lectura, Números y Operaciones, Álgebra, Geometría, Trigonometría, Estadística). 3 tipos de examen:
   - Ciencias: sin Estadística.
   - Letras: todos los cursos.
@@ -153,21 +153,23 @@ Sistema Prisma/
 
 ---
 
-## 5. Estado actual (2026-11-09)
+## 5. Estado actual (2026-11-11)
 
-Backend en Spring Boot 4.1.2 (PrismaBack#53, mergeado). Rebanada de login en PR: PrismaBack#55 + PrismaFront#37 (verificada con Google real por Antony).
+Backend en Spring Boot 4.1.2. Login, catálogo, usuarios y logs del backend están mergeados en `main`. Rebanada en curso: ciclos académicos (listar, crear y editar).
 
 | Módulo | Backend | Frontend |
 |---|---|---|
 | security / login (Google, `/me`, logout, 401, CSRF) | ✅ (PR #55) | ✅ login, layout, sesión (PR #37) |
 | catalog (áreas, cursos, tipos de examen, carreras) | ✅ áreas y cursos de solo lectura; tipos de examen y carreras administrables | ✅ pestañas de Catálogo |
-| users (gestión de usuarios y roles) | 🟡 en PR (PrismaBack#64) | 🟡 en PR (PrismaFront#46) |
-| academic, students, tutoring, exams, imports, goals, logbook, dashboards | ❌ (el esquema ya existe en V1) | ❌ |
+| users (gestión de usuarios y roles) | ✅ | ✅ pantalla Usuarios |
+| logs (archivo rotativo, `traceId` como `errorId`, aspecto en controllers, máscaras) | ✅ (PrismaBack#69) | — (no aplica) |
+| academic (ciclos y etapas) | 🟡 ciclos: listar, crear y editar en curso. Falta activar/cerrar, ciclo actual y etapas | 🟡 pantalla Ciclos en curso |
+| students, tutoring, exams, imports, goals, logbook, dashboards | ❌ (el esquema ya existe en V1) | ❌ |
 
 Pendientes de esquema:
 - Seed del usuario "System" (para jobs automáticos).
 - Eliminar `stage.sequence`.
-- Evitar solapamiento de fechas en ciclo y etapa.
+- Evitar solapamiento de fechas en etapa (el de ciclo entra con la rebanada de ciclos).
 
 ---
 
@@ -199,6 +201,7 @@ Resueltos el 2026-11-09: Spring Boot → 4.1.x · se mantiene JavaScript · dos 
 ---
 
 ## Historial de cambios
+- **2026-11-11** — (cat. C) Ciclos: nombre único sin distinguir mayúsculas (409). Para el solapamiento, un ciclo sin fecha de fin cuenta como abierto hacia adelante y dos ciclos no pueden compartir ni un día. La pantalla "Ciclos" es solo para ADMIN aunque la API permita leer a todos los roles.
 - **2026-11-11** — (cat. D) Logs: el texto sin `@Sensitive` se registra tal cual (cortado a 80 caracteres); todo DTO o parámetro con datos personales debe marcarlos con `@Sensitive`.
 - **2026-11-11** — (cat. D) Acuerdo de logs del backend: archivo rotativo, `traceId` como `errorId`, aspecto en controllers + handler global como único registrador de errores, niveles, ids en lugar de datos personales y máscara parcial solo cuando no hay id.
 - **2026-11-10** — (cat. C) Usuarios: el Admin permanente no se puede desactivar ni perder el rol `ADMIN` (409), lo que reemplaza la regla "no desactivar al último admin activo" de REQ-SECURITY-02. El correo es único sin distinguir mayúsculas y se guarda en minúsculas. La respuesta trae `permanentAdmin`. Reactivar a un usuario ya activo responde 409.
