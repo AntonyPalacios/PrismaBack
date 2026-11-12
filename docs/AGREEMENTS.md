@@ -22,6 +22,7 @@ Los tutores (psicólogos) acompañan a los alumnos con simulacros semanales, sig
 - **Roles:** `ADMIN`, `TUTOR`, `COORDINADOR` (todo el módulo de exámenes salvo la recarga forzada, que es solo de Admin).
 - **Admin permanente (inmutable):** `apalaciosc0109@gmail.com` (Antony Palacios Coronado) es siempre `ADMIN`. Se siembra por migración y ningún flujo de la app puede desactivarlo ni quitarle ese rol (el backend responde 409). Por eso no existe la regla de "último admin activo".
 - **Usuarios:** los gestiona solo ADMIN en "Usuarios": crear, editar nombres y roles, desactivar (soft-delete) y reactivar. Correo único sin distinguir mayúsculas (se guarda en minúsculas) y no editable. Al menos un rol; se permiten varios a la vez.
+- **Alumnos:** `ADMIN` y `TUTOR` los registran y editan; `COORDINADOR` solo los consulta y busca. Nombres y apellido paterno obligatorios; apellido materno, DNI, correo, teléfono y fecha de nacimiento opcionales. El DNI tiene de 8 a 12 letras o números (DNI peruano o carné de extranjería) y es único cuando se registra. El listado no se pagina por ahora (se busca por nombre o DNI).
 - **Primer tutor:** `silvia.valleg@prisma.edu.pe` (Silvia Valle Gómez) (sembrado junto al admin).
 - **Usuarios finales:** tutores, coordinadores y Silvia (administración). La UI va en español.
 - **Fase 2 (fuera del MVP):** reportes PDF con IA para apoderados, asistencia.
@@ -155,7 +156,7 @@ Sistema Prisma/
 
 ## 5. Estado actual (2026-11-11)
 
-Backend en Spring Boot 4.1.2. Login, catálogo, usuarios y logs del backend están mergeados en `main`. Rebanada en curso: activar y cerrar etapas.
+Backend en Spring Boot 4.1.2. Login, catálogo, usuarios y logs del backend están mergeados en `main`. Rebanada en curso: alumnos (listar, buscar, registrar y editar).
 
 | Módulo | Backend | Frontend |
 |---|---|---|
@@ -163,8 +164,9 @@ Backend en Spring Boot 4.1.2. Login, catálogo, usuarios y logs del backend est�
 | catalog (áreas, cursos, tipos de examen, carreras) | ✅ áreas y cursos de solo lectura; tipos de examen y carreras administrables | ✅ pestañas de Catálogo |
 | users (gestión de usuarios y roles) | ✅ | ✅ pantalla Usuarios |
 | logs (archivo rotativo, `traceId` como `errorId`, aspecto en controllers, máscaras) | ✅ (PrismaBack#69) | — (no aplica) |
-| academic (ciclos y etapas) | 🟡 ciclos ✅ (PrismaBack#71, #73); etapas: listar, crear, editar y eliminar ✅ (PrismaBack#75); activar/cerrar etapas en curso. Falta ciclo/etapa actual (`GET …/current`, entran con la primera pantalla que los use) | 🟡 pantalla Ciclos ✅ (PrismaFront#53, #55); sección Etapas ✅ (PrismaFront#57); activar/cerrar etapas en curso |
-| students, tutoring, exams, imports, goals, logbook, dashboards | ❌ (el esquema ya existe en V1) | ❌ |
+| academic (ciclos y etapas) | 🟡 ciclos ✅ (PrismaBack#71, #73); etapas ✅ (PrismaBack#75, #77). Falta el cierre automático y ciclo/etapa actual (`GET …/current`, entran con la primera pantalla que los use) | 🟡 pantalla Ciclos ✅ (PrismaFront#53, #55); sección Etapas ✅ (PrismaFront#57, #59) |
+| students | 🟡 listar, buscar, registrar y editar en curso. Falta matrícula, apoderados, baja e importación | 🟡 pantalla Alumnos en curso |
+| tutoring, exams, imports, goals, logbook, dashboards | ❌ (el esquema ya existe en V1) | ❌ |
 
 Pendientes de esquema:
 - Seed del usuario "System" (para jobs automáticos).
@@ -192,13 +194,14 @@ npm test && npm run lint && npm run build
 
 ## 7. Por revisar (abierto — decidir con Antony)
 
-- [ ] **Alcance de `COORDINADOR`:** creció dos veces. Revalidar el límite actual (pospuesto por Antony: se ve más adelante, a más tardar al llegar a la rebanada de exámenes).
+- [ ] **Alcance de `COORDINADOR`:** creció dos veces (y el 2026-11-12 se le dio consulta de alumnos). Revalidar el límite actual (pospuesto por Antony: se ve más adelante, a más tardar al llegar a la rebanada de exámenes).
 
 Resueltos el 2026-11-09: Spring Boot → 4.1.x · se mantiene JavaScript · dos repos con copia de este archivo · front v1 a `legacy` en la primera rebanada de front · ODD confirmado con categorías A–D · skill `prisma-flow` reemplaza a `github-flow` · skills SDD `spec-lite` y `spec-endpoints` archivadas en `~/.claude/skills-archive/` (se pueden restaurar moviéndolas de vuelta a `~/.claude/skills/`) · este archivo copiado como `docs/AGREEMENTS.md` en PrismaBack (#56) y PrismaFront (#38).
 
 ---
 
 ## Historial de cambios
+- **2026-11-12** — (cat. C) Alumnos: `COORDINADOR` puede consultarlos y buscarlos pero no registrarlos ni editarlos (REQ-STUDENTS-01 solo nombraba a ADMIN y TUTOR); el DNI acepta de 8 a 12 letras o números; el listado va sin paginación y, por ahora, sin tutor ni etapa (llegan con matrícula y tutorías).
 - **2026-11-12** — (cat. C) Etapas, cambio de estado: una sola etapa `ACTIVE` por ciclo; se activa solo con el ciclo `ACTIVE` y la fecha de inicio ya llegada; se cierra solo si ya empezó, tiene fecha de fin y esta no es futura (el sistema nunca la cambia; para cerrar antes, el usuario corrige la fecha). El cierre anticipado del ciclo conserva su regla (fecha de fin al día del cierre, con confirmación).
 - **2026-11-12** — (cat. C) Etapas: tienen los mismos estados que el ciclo y nacen `PLANNED`; nombre único dentro del ciclo; fechas siempre dentro de las del ciclo y sin solaparse; la fecha de fin la pone siempre el usuario; en un ciclo cerrado no se crean ni editan; cerrar un ciclo exige que todas sus etapas estén `CLOSED` (reemplaza el cierre en cascada de REQ-ACADEMIC-01/02). La etapa vigente se define por fechas (la de hoy; si no, la que empezó más recientemente), sin importar estados.
 - **2026-11-11** — (cat. C) Ciclos y etapas se pueden eliminar (borrado lógico, `DELETE` → 204, solo ADMIN), para que un error de fechas no obligue a tocar la base de datos: un ciclo sin etapas, en cualquier estado; una etapa sin matrículas ni exámenes, también en ciclos cerrados (con la rebanada de etapas). Un ciclo eliminado no se lista ni se recupera y deja libres su nombre, sus fechas y el lugar de ciclo activo. Reemplaza la regla "los ciclos nunca se eliminan" de REQ-ACADEMIC-01.
