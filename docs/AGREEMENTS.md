@@ -83,6 +83,7 @@ Sistema Prisma/
 - Toda escritura es todo-o-nada (`@Transactional`).
 - Nombres de personas se muestran como **"Apellidos, Nombres"** y los listados se ordenan por apellido paterno, apellido materno y nombres, ignorando mayúsculas y tildes.
 - **Git:** tarjeta → issue estándar en inglés (`[Feature]`, `[Fix]`, `[Refactor]`, `[Chore]`, `[Test]`, `[Docs]`) → rama `<n°-issue>-<descripcion>` ligada al issue (`gh issue develop`) → Conventional Commits en inglés → PR con `Closes #n`. No se hace commit sin preguntar y Claude nunca hace merge. Detalle en la skill `prisma-flow`.
+- **CI (GitHub Actions)** en ambos repos (`.github/workflows/ci.yml`): corre en cada PR, en cada push al PR y al llegar cÃ³digo a `main`. Back: `./mvnw -B verify`; front: `npm ci`, `lint`, `test` y `build`. Un push nuevo cancela la corrida anterior del mismo PR (en `main` nunca se cancela). Los cambios solo de documentaciÃ³n (`docs/**`, `*.md`, `LICENSE`) omiten los tests sin bloquear el PR. `main` estÃ¡ protegida: exige el check en verde para mergear, tambiÃ©n para el admin, y no exige que la rama estÃ© al dÃ­a con `main`.
 
 ### 4.2 Backend
 - Java 21, **Spring Boot 4.1.x** (migrado 2026-11-09, PrismaBack#53), Maven. JDK local: `C:\Users\anton\.jdks\corretto-21.0.9` (el `java` por defecto de la terminal es 17).
@@ -199,6 +200,7 @@ Resueltos el 2026-11-09: Spring Boot → 4.1.x · se mantiene JavaScript · dos 
 ---
 
 ## Historial de cambios
+- **2026-11-12** â (cat. D) CI con GitHub Actions en PrismaBack y PrismaFront (PrismaBack#79, PrismaFront#61): corre en PRs y en `main`, cancela corridas viejas del mismo PR, omite los cambios solo de documentaciÃ³n y `main` exige el check en verde para mergear.
 - **2026-11-12** — (cat. C) Etapas, cambio de estado: una sola etapa `ACTIVE` por ciclo; se activa solo con el ciclo `ACTIVE` y la fecha de inicio ya llegada; se cierra solo si ya empezó, tiene fecha de fin y esta no es futura (el sistema nunca la cambia; para cerrar antes, el usuario corrige la fecha). El cierre anticipado del ciclo conserva su regla (fecha de fin al día del cierre, con confirmación).
 - **2026-11-12** — (cat. C) Etapas: tienen los mismos estados que el ciclo y nacen `PLANNED`; nombre único dentro del ciclo; fechas siempre dentro de las del ciclo y sin solaparse; la fecha de fin la pone siempre el usuario; en un ciclo cerrado no se crean ni editan; cerrar un ciclo exige que todas sus etapas estén `CLOSED` (reemplaza el cierre en cascada de REQ-ACADEMIC-01/02). La etapa vigente se define por fechas (la de hoy; si no, la que empezó más recientemente), sin importar estados.
 - **2026-11-11** — (cat. C) Ciclos y etapas se pueden eliminar (borrado lógico, `DELETE` → 204, solo ADMIN), para que un error de fechas no obligue a tocar la base de datos: un ciclo sin etapas, en cualquier estado; una etapa sin matrículas ni exámenes, también en ciclos cerrados (con la rebanada de etapas). Un ciclo eliminado no se lista ni se recupera y deja libres su nombre, sus fechas y el lugar de ciclo activo. Reemplaza la regla "los ciclos nunca se eliminan" de REQ-ACADEMIC-01.
