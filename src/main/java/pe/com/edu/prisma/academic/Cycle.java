@@ -9,12 +9,19 @@ import java.time.LocalDate;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.SQLRestriction;
 import pe.com.edu.prisma.common.FullAuditEntity;
 
 /**
  * The root unit of time of the academy: stages, exams and enrollments all
- * hang from a cycle. Cycles are never deleted; a CLOSED one is the archive.
+ * hang from a cycle. A CLOSED one is the archive.
+ *
+ * An admin can delete a cycle created by mistake. It is a soft delete, and
+ * the restriction below hides deleted cycles from every query: for the rest
+ * of the code a deleted cycle simply does not exist (the constraints of V8
+ * ignore it too, so its name and dates are free again).
  */
+@SQLRestriction("deleted = false")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -36,4 +43,8 @@ public class Cycle extends FullAuditEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private CycleStatus status = CycleStatus.PLANNED;
+
+    // soft delete: see the @SQLRestriction on the class
+    @Column(nullable = false)
+    private boolean deleted = false;
 }

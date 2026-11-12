@@ -5,6 +5,7 @@ import java.net.URI;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,7 +21,7 @@ import pe.com.edu.prisma.academic.dto.UpsertCycleRequest;
 /**
  * Academic cycles (REQ-ACADEMIC-01): any authenticated user reads them
  * (the rest of the system hangs from the cycle); only ADMIN creates, edits
- * and changes the status. There is no delete: a cycle is closed, never removed.
+ * changes the status and deletes (soft delete, 204).
  */
 @RestController
 @RequestMapping("/api/v1/cycles")
@@ -60,5 +61,13 @@ public class CycleController {
     @PreAuthorize("hasRole('ADMIN')")
     public CycleDto changeStatus(@PathVariable Long id, @Valid @RequestBody ChangeCycleStatusRequest request) {
         return cycleService.changeStatus(id, request);
+    }
+
+    // soft delete, for a cycle created by mistake; only while it has no stages
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        cycleService.delete(id);
+        return ResponseEntity.noContent().build();
     }
 }

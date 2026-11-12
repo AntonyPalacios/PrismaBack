@@ -19,6 +19,7 @@ import pe.com.edu.prisma.academic.mapper.CycleMapper;
 import pe.com.edu.prisma.common.exception.BusinessRuleException;
 import pe.com.edu.prisma.common.exception.ConfirmationRequiredException;
 import pe.com.edu.prisma.common.exception.ResourceNotFoundException;
+import pe.com.edu.prisma.common.logging.LogSanitizer;
 
 @Service
 @Transactional(readOnly = true)
@@ -27,6 +28,8 @@ public class CycleServiceImpl implements CycleService {
     static final String DUPLICATE_NAME = "Ya existe un ciclo con ese nombre.";
     static final String OVERLAPPING_DATES = "Las fechas de este ciclo se cruzan con las de otro ciclo.";
     static final String CLOSED_NOT_EDITABLE = "Este ciclo está cerrado y ya no se puede editar.";
+    static final String HAS_STAGES =
+            "Este ciclo tiene etapas, así que no se puede eliminar. Elimina primero sus etapas.";
     static final String FORWARD_ONLY =
             "Un ciclo solo puede avanzar: de planificado a activo y de activo a cerrado.";
     static final String ANOTHER_ACTIVE = "Ya hay otro ciclo activo. Ciérralo antes de activar este.";
@@ -123,6 +126,19 @@ public class CycleServiceImpl implements CycleService {
         }
         log.info("Cycle status changed: cycleId={} from={} to={} endDate={}", id, from, to, cycle.getEndDate());
         return cycleMapper.toDto(cycle);
+    }
+
+    @Override
+    @Transactional
+    public void delete(Long id) {
+        Cycle cycle = getOrThrow(id);
+        if (cycleRepository.countStages(id) > 0) {
+            throw new BusinessRuleException(HAS_STAGES);
+        }
+        cycle.setDeleted(true); // soft delete: from here on no query sees it
+        // the log line is the only trace of a deletion (a cycle name is not personal data)
+        log.info("Cycle deleted: cycleId={} name={} status={} startDate={} endDate={}",
+                id, LogSanitizer.sanitize(cycle.getName()), cycle.getStatus(), cycle.getStartDate(), cycle.getEndDate());
     }
 
     private void activate(Cycle cycle, LocalDate today) {

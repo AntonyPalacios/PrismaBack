@@ -29,13 +29,14 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import pe.com.edu.prisma.config.ContainersConfig;
 
 /**
- * Academic cycles (REQ-ACADEMIC-01): list, create and edit. No cycle is
+ * Academic cycles (REQ-ACADEMIC-01): list, create, edit, status and delete. No cycle is
  * seeded and nothing else uses them yet, so every test starts from an
  * empty table and is free to pick its own dates.
  */
@@ -51,9 +52,14 @@ class CycleApiIT {
     @Autowired
     private CycleRepository cycleRepository;
 
+    @Autowired
+    private JdbcTemplate jdbc;
+
+    // plain SQL: soft-deleted cycles are invisible to the repository but must go too
     @BeforeEach
-    void emptyTable() {
-        cycleRepository.deleteAll();
+    void emptyTables() {
+        jdbc.update("DELETE FROM stage");
+        jdbc.update("DELETE FROM cycle");
     }
 
     private static String body(String name, String startDate, String endDate) {
@@ -232,11 +238,52 @@ class CycleApiIT {
     }
 
     @Test
-    void cyclesCannotBeDeleted() throws Exception {
+    void aDeletedCycleDisappearsAndFreesItsNameAndDates(CapturedOutput output) throws Exception {
         long id = createdId("2026-I", "2026-03-01", null);
 
-        asAdmin(delete("/api/v1/cycles/" + id)).andExpect(status().isMethodNotAllowed());
-        assertThat(cycleRepository.existsById(id)).isTrue();
+        asAdmin(delete("/api/v1/cycles/" + id)).andExpect(status().isNoContent());
+
+        // for the API it no longer exists
+        asAdmin(get("/api/v1/cycles/" + id)).andExpect(status().isNotFound());
+        asAdmin(get("/api/v1/cycles")).andExpect(jsonPath("$.length()").value(0));
+        asAdmin(put("/api/v1/cycles/" + id).content(body("2026-I", "2026-03-01", null)))
+                .andExpect(status().isNotFound());
+        asAdmin(delete("/api/v1/cycles/" + id)).andExpect(status().isNotFound());
+
+        // the same name and the same dates can be used again (it was open-ended: it blocked everything after)
+        create("2026-i", "2026-03-01", "2026-07-31").andExpect(status().isCreated());
+
+        // soft delete: the row is still in the table, and the log line is its trace
+        assertThat(jdbc.queryForObject("SELECT deleted FROM cycle WHERE id = ?", Boolean.class, id)).isTrue();
+        assertThat(output.getOut()).contains("Cycle deleted: cycleId=" + id + " name=\"2026-I\" status=PLANNED");
+    }
+
+    @Test
+    void aCycleCanBeDeletedInAnyStatusAndAnActiveOneFreesTheActiveSlot() throws Exception {
+        long active = activeId("Activo", day(-10), day(10));
+        long next = createdId("Siguiente", day(-40), day(-11));
+        changeStatus(next, "ACTIVE", null).andExpect(status().isConflict());
+
+        asAdmin(delete("/api/v1/cycles/" + active)).andExpect(status().isNoContent());
+        changeStatus(next, "ACTIVE", null).andExpect(status().isOk());
+
+        changeStatus(next, "CLOSED", null).andExpect(status().isOk());
+        asAdmin(delete("/api/v1/cycles/" + next)).andExpect(status().isNoContent());
+        asAdmin(get("/api/v1/cycles")).andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void aCycleWithStagesCannotBeDeleted() throws Exception {
+        long id = createdId("2026-I", "2026-03-01", null);
+        jdbc.update("INSERT INTO stage (cycle_id, name, sequence) VALUES (?, 'Etapa 1', 1)", id);
+
+        asAdmin(delete("/api/v1/cycles/" + id))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail")
+                        .value("Este ciclo tiene etapas, así que no se puede eliminar. Elimina primero sus etapas."));
+        asAdmin(get("/api/v1/cycles/" + id)).andExpect(status().isOk());
+
+        asAdmin(delete("/api/v1/cycles/999999")).andExpect(status().isNotFound());
     }
 
     // ---- status changes: PLANNED → ACTIVE → CLOSED ----
@@ -402,6 +449,7 @@ class CycleApiIT {
         long id = createdId("2026-I", "2026-03-01", null);
         as(role, patch("/api/v1/cycles/" + id + "/status").content("{\"status\":\"ACTIVE\"}"))
                 .andExpect(status().isForbidden());
+        as(role, delete("/api/v1/cycles/" + id)).andExpect(status().isForbidden());
 
         as(role, get("/api/v1/cycles")).andExpect(status().isOk());
         as(role, get("/api/v1/cycles/" + id)).andExpect(status().isOk());

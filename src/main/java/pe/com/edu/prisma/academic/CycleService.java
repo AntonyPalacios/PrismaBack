@@ -7,7 +7,8 @@ import pe.com.edu.prisma.academic.dto.UpsertCycleRequest;
 
 /**
  * Academic cycles (REQ-ACADEMIC-01): an admin creates and edits them; they
- * are never deleted, only moved forward until they are closed.
+ * move forward until they are closed, and one created by mistake can be
+ * deleted (soft delete) while it has no stages.
  */
 public interface CycleService {
 
@@ -21,4 +22,7 @@ public interface CycleService {
 
     /** Moves the cycle forward (PLANNED → ACTIVE → CLOSED), never back. */
     CycleDto changeStatus(Long id, ChangeCycleStatusRequest request);
+
+    /** Soft-deletes a cycle created by mistake; only while it has no stages. */
+    void delete(Long id);
 }
