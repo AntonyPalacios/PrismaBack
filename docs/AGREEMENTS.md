@@ -84,6 +84,8 @@ Sistema Prisma/
 - Toda escritura es todo-o-nada (`@Transactional`).
 - Nombres de personas se muestran como **"Apellidos, Nombres"** y los listados se ordenan por apellido paterno, apellido materno y nombres, ignorando mayúsculas y tildes.
 - **Git:** tarjeta → issue estándar en inglés (`[Feature]`, `[Fix]`, `[Refactor]`, `[Chore]`, `[Test]`, `[Docs]`) → rama `<n°-issue>-<descripcion>` ligada al issue (`gh issue develop`) → Conventional Commits en inglés → PR con `Closes #n`. No se hace commit sin preguntar y Claude nunca hace merge. Detalle en la skill `prisma-flow`.
+- **CI (GitHub Actions)** en ambos repos (`.github/workflows/ci.yml`): corre en cada PR, en cada push al PR y al llegar código a `main`. Back: `./mvnw -B verify`; front: `npm ci`, `lint`, `test` y `build`. Un push nuevo cancela la corrida anterior del mismo PR (en `main` nunca se cancela). Los cambios solo de documentación (`docs/**`, `*.md`, `LICENSE`) omiten los tests sin bloquear el PR. `main` está protegida: exige el check en verde para mergear, también para el admin, y no exige que la rama esté al día con `main`.
+- **Docker:** cada repo tiene su `Dockerfile` multi-etapa (back: compila con Maven + JDK 21 y corre en JRE 21 sin root; front: compila con Node 22 y lo sirve Caddy). El sistema completo se levanta con `docker-compose.full.yml` de PrismaBack (BD + back + web, construye el front desde `../frontend`) en `http://localhost:8080`: Caddy sirve el SPA y reenvía `/api`, `/oauth2/authorization` y `/login/oauth2` al backend en el mismo origen. Solo se publica el puerto de Caddy. Los secretos vienen del `.env`, nunca de la imagen. Es para levantar el sistema donde no hay Java ni Node; el desarrollo diario sigue con IntelliJ + `npm run dev`.
 
 ### 4.2 Backend
 - Java 21, **Spring Boot 4.1.x** (migrado 2026-11-09, PrismaBack#53), Maven. JDK local: `C:\Users\anton\.jdks\corretto-21.0.9` (el `java` por defecto de la terminal es 17).
@@ -156,7 +158,7 @@ Sistema Prisma/
 
 ## 5. Estado actual (2026-11-11)
 
-Backend en Spring Boot 4.1.2. Login, catálogo, usuarios y logs del backend están mergeados en `main`. Rebanada en curso: alumnos (listar, buscar, registrar y editar).
+Backend en Spring Boot 4.1.2. Login, catálogo, usuarios y logs del backend están mergeados en `main`. Rebanada en curso: activar y cerrar etapas.
 
 | Módulo | Backend | Frontend |
 |---|---|---|
@@ -190,6 +192,11 @@ npm run dev                   # http://localhost:5173 (proxy /api -> :8080)
 npm test && npm run lint && npm run build
 ```
 
+```bash
+# Sistema completo con solo Docker (desde prisma-v2/backend; ver su README)
+docker compose -f docker-compose.full.yml up -d --build   # http://localhost:8080
+```
+
 ---
 
 ## 7. Por revisar (abierto — decidir con Antony)
@@ -202,6 +209,8 @@ Resueltos el 2026-11-09: Spring Boot → 4.1.x · se mantiene JavaScript · dos 
 
 ## Historial de cambios
 - **2026-11-12** — (cat. C) Alumnos: `COORDINADOR` puede consultarlos y buscarlos pero no registrarlos ni editarlos (REQ-STUDENTS-01 solo nombraba a ADMIN y TUTOR); el DNI acepta de 8 a 12 letras o números; el listado va sin paginación y, por ahora, sin tutor ni etapa (llegan con matrícula y tutorías).
+- **2026-11-12** — (cat. D) Docker (PrismaBack#81, PrismaFront#63): `Dockerfile` por repo y `docker-compose.full.yml` en PrismaBack para levantar todo con solo Docker en `http://localhost:8080`, con Caddy como única entrada (mismo origen para la cookie y el CSRF). Publicar imágenes en GHCR queda para la rebanada de CD.
+- **2026-11-12** — (cat. D) CI con GitHub Actions en PrismaBack y PrismaFront (PrismaBack#79, PrismaFront#61): corre en PRs y en `main`, cancela corridas viejas del mismo PR, omite los cambios solo de documentación y `main` exige el check en verde para mergear.
 - **2026-11-12** — (cat. C) Etapas, cambio de estado: una sola etapa `ACTIVE` por ciclo; se activa solo con el ciclo `ACTIVE` y la fecha de inicio ya llegada; se cierra solo si ya empezó, tiene fecha de fin y esta no es futura (el sistema nunca la cambia; para cerrar antes, el usuario corrige la fecha). El cierre anticipado del ciclo conserva su regla (fecha de fin al día del cierre, con confirmación).
 - **2026-11-12** — (cat. C) Etapas: tienen los mismos estados que el ciclo y nacen `PLANNED`; nombre único dentro del ciclo; fechas siempre dentro de las del ciclo y sin solaparse; la fecha de fin la pone siempre el usuario; en un ciclo cerrado no se crean ni editan; cerrar un ciclo exige que todas sus etapas estén `CLOSED` (reemplaza el cierre en cascada de REQ-ACADEMIC-01/02). La etapa vigente se define por fechas (la de hoy; si no, la que empezó más recientemente), sin importar estados.
 - **2026-11-11** — (cat. C) Ciclos y etapas se pueden eliminar (borrado lógico, `DELETE` → 204, solo ADMIN), para que un error de fechas no obligue a tocar la base de datos: un ciclo sin etapas, en cualquier estado; una etapa sin matrículas ni exámenes, también en ciclos cerrados (con la rebanada de etapas). Un ciclo eliminado no se lista ni se recupera y deja libres su nombre, sus fechas y el lugar de ciclo activo. Reemplaza la regla "los ciclos nunca se eliminan" de REQ-ACADEMIC-01.
