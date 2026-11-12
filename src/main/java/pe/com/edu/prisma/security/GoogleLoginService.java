@@ -4,6 +4,7 @@ import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import pe.com.edu.prisma.common.logging.LogMask;
 import pe.com.edu.prisma.users.User;
 import pe.com.edu.prisma.users.UserRepository;
 
@@ -31,11 +32,11 @@ public class GoogleLoginService {
     @Transactional
     public User registerLogin(String email, boolean emailVerified, String googleSub, String photoUrl) {
         if (email == null || !emailVerified) {
-            throw notRegistered();
+            throw notRegistered(email);
         }
         User user = userRepository.findByEmailIgnoreCase(email)
                 .filter(User::isActive)
-                .orElseThrow(GoogleLoginService::notRegistered);
+                .orElseThrow(() -> notRegistered(email));
 
         // Refreshed on every login so the avatar follows the Google account.
         user.setPhotoUrl(photoUrl);
@@ -45,8 +46,11 @@ public class GoogleLoginService {
         return user;
     }
 
-    private static OAuth2AuthenticationException notRegistered() {
-        return new OAuth2AuthenticationException(
-                new OAuth2Error(NOT_REGISTERED), "No hay una cuenta de Prisma activa para este correo");
+    // the message is only ever logged (the frontend just gets the error code), so the
+    // email goes masked: there is no user id to log for someone who is not registered
+    private static OAuth2AuthenticationException notRegistered(String email) {
+        String masked = email == null ? "none" : LogMask.EMAIL.apply(email);
+        return new OAuth2AuthenticationException(new OAuth2Error(NOT_REGISTERED),
+                "No active Prisma account for email " + masked);
     }
 }

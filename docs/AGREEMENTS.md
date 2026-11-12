@@ -114,7 +114,7 @@ Sistema Prisma/
     | Puntajes y notas | Nunca se registran | — |
     | JWT, cookies, tokens OAuth/CSRF | Nunca, ni enmascarados | — |
 
-  - **Saneo de argumentos** (lista blanca): ids, enums, fechas y números van tal cual; las colecciones solo con su tamaño; los archivos solo con nombre y tamaño; los campos marcados con `@Sensitive` se enmascaran según la tabla anterior.
+  - **Saneo de argumentos** (lista blanca): ids, enums, fechas y números van tal cual; las colecciones solo con su tamaño; los archivos solo con nombre y tamaño; los campos marcados con `@Sensitive` se enmascaran según la tabla anterior. El texto sin `@Sensitive` se registra tal cual (cortado a 80 caracteres), por lo que **todo DTO o parámetro con datos personales debe marcarlos con `@Sensitive`**.
   - **Estilo:** mensajes en inglés, parametrizados (`log.info("... {}", x)`), con la excepción como último argumento. Los logs no reemplazan a la auditoría en base de datos.
 - **Auth:** solo Google OAuth2. El JWT viaja en cookie `httpOnly` + `Secure`, nunca en la URL ni en `localStorage`. El registro es administrado: solo entran correos que ya existen como `app_user` activo. CSRF con cookie legible + header `X-XSRF-TOKEN`.
 - **Autorización** con `@PreAuthorize` en cada endpoint de escritura. El Tutor solo accede a sus alumnos asignados.
@@ -199,6 +199,7 @@ Resueltos el 2026-11-09: Spring Boot → 4.1.x · se mantiene JavaScript · dos 
 ---
 
 ## Historial de cambios
+- **2026-11-11** — (cat. D) Logs: el texto sin `@Sensitive` se registra tal cual (cortado a 80 caracteres); todo DTO o parámetro con datos personales debe marcarlos con `@Sensitive`.
 - **2026-11-11** — (cat. D) Acuerdo de logs del backend: archivo rotativo, `traceId` como `errorId`, aspecto en controllers + handler global como único registrador de errores, niveles, ids en lugar de datos personales y máscara parcial solo cuando no hay id.
 - **2026-11-10** — (cat. C) Usuarios: el Admin permanente no se puede desactivar ni perder el rol `ADMIN` (409), lo que reemplaza la regla "no desactivar al último admin activo" de REQ-SECURITY-02. El correo es único sin distinguir mayúsculas y se guarda en minúsculas. La respuesta trae `permanentAdmin`. Reactivar a un usuario ya activo responde 409.
 - **2026-11-10** — (cat. C) Carreras: CRUD con desactivación (soft-delete) y reactivación (`POST .../reactivate`), nombre único sin distinguir mayúsculas (409), pestaña "Carreras" dentro de "Catálogo" (no ítem de menú propio como en el prototipo).

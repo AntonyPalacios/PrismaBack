@@ -14,3 +14,8 @@ spring:
           google:
             client-id: test-client-id
             client-secret: test-client-secret
+
+# keep test logs out of the real logs/ folder
+logging:
+  file:
+    name: target/logs/prisma-test.log

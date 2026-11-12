@@ -4,6 +4,8 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pe.com.edu.prisma.common.SpanishOrder;
@@ -22,6 +24,8 @@ import pe.com.edu.prisma.users.mapper.UserMapper;
 @Service
 @Transactional(readOnly = true)
 public class UserServiceImpl implements UserService {
+
+    private static final Logger log = LoggerFactory.getLogger(UserServiceImpl.class);
 
     static final String DUPLICATE_EMAIL = "Ya existe un usuario con ese correo.";
     static final String PERMANENT_ADMIN_DEACTIVATION =
@@ -67,7 +71,9 @@ public class UserServiceImpl implements UserService {
         User user = new User();
         user.setEmail(email);
         apply(user, request.firstName(), request.lastNamePat(), request.lastNameMat(), request.roles());
-        return userMapper.toDto(userRepository.save(user));
+        User saved = userRepository.save(user);
+        log.info("User created: userId={} roles={}", saved.getId(), request.roles());
+        return userMapper.toDto(saved);
     }
 
     @Override
@@ -78,6 +84,7 @@ public class UserServiceImpl implements UserService {
             throw new BusinessRuleException(PERMANENT_ADMIN_ROLE);
         }
         apply(user, request.firstName(), request.lastNamePat(), request.lastNameMat(), request.roles());
+        log.info("User updated: userId={} roles={}", id, request.roles());
         return userMapper.toDto(user);
     }
 
@@ -89,6 +96,7 @@ public class UserServiceImpl implements UserService {
             throw new BusinessRuleException(PERMANENT_ADMIN_DEACTIVATION);
         }
         user.setActive(false); // access is lost on the next request: the JWT filter reloads the user
+        log.info("User deactivated: userId={}", id);
     }
 
     @Override
@@ -99,6 +107,7 @@ public class UserServiceImpl implements UserService {
             throw new BusinessRuleException(ALREADY_ACTIVE);
         }
         user.setActive(true);
+        log.info("User reactivated: userId={}", id);
         return userMapper.toDto(user);
     }
 

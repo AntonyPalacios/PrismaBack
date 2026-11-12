@@ -2,6 +2,8 @@ package pe.com.edu.prisma.catalog.impl;
 
 import java.util.Comparator;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pe.com.edu.prisma.catalog.Career;
@@ -19,6 +21,8 @@ import pe.com.edu.prisma.common.exception.ResourceNotFoundException;
 @Service
 @Transactional(readOnly = true)
 public class CareerServiceImpl implements CareerService {
+
+    private static final Logger log = LoggerFactory.getLogger(CareerServiceImpl.class);
 
     static final String DUPLICATE_NAME = "Ya existe una carrera con ese nombre.";
     static final String UNKNOWN_EXAM_TYPE = "El tipo de examen seleccionado no existe.";
@@ -56,7 +60,9 @@ public class CareerServiceImpl implements CareerService {
         }
         Career career = new Career();
         apply(career, name, request);
-        return careerMapper.toDto(careerRepository.save(career));
+        Career saved = careerRepository.save(career);
+        log.info("Career created: careerId={} examTypeId={}", saved.getId(), request.examTypeId());
+        return careerMapper.toDto(saved);
     }
 
     @Override
@@ -68,6 +74,7 @@ public class CareerServiceImpl implements CareerService {
             throw new BusinessRuleException(DUPLICATE_NAME);
         }
         apply(career, name, request);
+        log.info("Career updated: careerId={} examTypeId={}", id, request.examTypeId());
         return careerMapper.toDto(career);
     }
 
@@ -75,6 +82,7 @@ public class CareerServiceImpl implements CareerService {
     @Transactional
     public void deactivate(Long id) {
         getOrThrow(id).setActive(false);
+        log.info("Career deactivated: careerId={}", id);
     }
 
     @Override
@@ -82,6 +90,7 @@ public class CareerServiceImpl implements CareerService {
     public CareerDto reactivate(Long id) {
         Career career = getOrThrow(id);
         career.setActive(true); // harmless if it was already active
+        log.info("Career reactivated: careerId={}", id);
         return careerMapper.toDto(career);
     }
 

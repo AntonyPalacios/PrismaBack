@@ -6,10 +6,12 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Optional;
+import org.slf4j.MDC;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.web.filter.OncePerRequestFilter;
+import pe.com.edu.prisma.common.logging.TraceIds;
 import pe.com.edu.prisma.config.AppProperties;
 import pe.com.edu.prisma.users.User;
 import pe.com.edu.prisma.users.UserRepository;
@@ -48,9 +50,15 @@ public class JwtCookieAuthenticationFilter extends OncePerRequestFilter {
                             principal, null, principal.getAuthorities());
                     authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authentication);
+                    // printed on every log line of this request (the id, never the email)
+                    MDC.put(TraceIds.USER_ID, String.valueOf(user.getId()));
                 });
 
-        chain.doFilter(request, response);
+        try {
+            chain.doFilter(request, response);
+        } finally {
+            MDC.remove(TraceIds.USER_ID); // the thread goes back to the pool
+        }
     }
 
     private Optional<String> readCookie(HttpServletRequest request) {
