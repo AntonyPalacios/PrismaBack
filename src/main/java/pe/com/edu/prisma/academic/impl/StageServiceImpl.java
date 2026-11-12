@@ -14,6 +14,7 @@ import pe.com.edu.prisma.academic.Stage;
 import pe.com.edu.prisma.academic.StageRepository;
 import pe.com.edu.prisma.academic.StageService;
 import pe.com.edu.prisma.academic.StageStatus;
+import pe.com.edu.prisma.academic.dto.ChangeStageStatusRequest;
 import pe.com.edu.prisma.academic.dto.StageDto;
 import pe.com.edu.prisma.academic.dto.UpsertStageRequest;
 import pe.com.edu.prisma.academic.mapper.StageMapper;
@@ -32,6 +33,21 @@ public class StageServiceImpl implements StageService {
                     + "no puede empezar antes ni terminar después que el ciclo.";
     static final String DUPLICATE_NAME = "Ya existe una etapa con ese nombre en este ciclo.";
     static final String OVERLAPPING_DATES = "Las fechas de esta etapa se cruzan con las de otra etapa del ciclo.";
+    static final String FORWARD_ONLY =
+            "Una etapa solo puede avanzar: de planificada a activa y de activa a cerrada.";
+    static final String CYCLE_NOT_ACTIVE =
+            "Para activar una etapa, su ciclo tiene que estar activo. Activa primero el ciclo.";
+    static final String NOT_STARTED_ACTIVATE =
+            "Esta etapa aún no empieza: su fecha de inicio es futura. Actívala cuando llegue esa fecha "
+                    + "o corrige la fecha de inicio.";
+    static final String ANOTHER_ACTIVE = "Ya hay otra etapa activa en este ciclo. Ciérrala antes de activar esta.";
+    static final String NOT_STARTED_CLOSE =
+            "Esta etapa aún no empieza, así que no se puede cerrar. Corrige su fecha de inicio.";
+    static final String END_DATE_REQUIRED_TO_CLOSE =
+            "Esta etapa no tiene fecha de fin. Defínela antes de cerrarla.";
+    static final String END_DATE_IN_FUTURE =
+            "La fecha de fin de esta etapa todavía no llega. Si quieres cerrarla hoy, "
+                    + "corrige primero su fecha de fin.";
     static final String HAS_DATA =
             "Esta etapa tiene alumnos matriculados o exámenes, así que no se puede eliminar.";
 
@@ -111,6 +127,53 @@ public class StageServiceImpl implements StageService {
         log.info("Stage updated: stageId={} cycleId={} startDate={} endDate={}",
                 id, cycleId, stage.getStartDate(), stage.getEndDate());
         return toDto(stage);
+    }
+
+    @Override
+    @Transactional
+    public StageDto changeStatus(Long cycleId, Long id, ChangeStageStatusRequest request) {
+        Stage stage = getOrThrow(cycleId, id);
+        StageStatus from = stage.getStatus();
+        StageStatus to = request.status();
+        LocalDate today = LocalDate.now(clock);
+
+        if (from == StageStatus.PLANNED && to == StageStatus.ACTIVE) {
+            activate(stage, today);
+        } else if (from == StageStatus.ACTIVE && to == StageStatus.CLOSED) {
+            close(stage, today);
+        } else {
+            throw new BusinessRuleException(FORWARD_ONLY);
+        }
+        log.info("Stage status changed: stageId={} cycleId={} from={} to={}", id, cycleId, from, to);
+        return toDto(stage);
+    }
+
+    private void activate(Stage stage, LocalDate today) {
+        if (stage.getCycle().getStatus() != CycleStatus.ACTIVE) {
+            throw new BusinessRuleException(CYCLE_NOT_ACTIVE);
+        }
+        if (stage.getStartDate().isAfter(today)) {
+            throw new BusinessRuleException(NOT_STARTED_ACTIVATE);
+        }
+        if (stageRepository.existsByCycleIdAndStatus(stage.getCycle().getId(), StageStatus.ACTIVE)) {
+            throw new BusinessRuleException(ANOTHER_ACTIVE);
+        }
+        stage.setStatus(StageStatus.ACTIVE);
+    }
+
+    // The end date is always the user's: it is never changed here, not even
+    // with a confirmation. Closing early means correcting the end date first.
+    private static void close(Stage stage, LocalDate today) {
+        if (stage.getStartDate().isAfter(today)) {
+            throw new BusinessRuleException(NOT_STARTED_CLOSE);
+        }
+        if (stage.getEndDate() == null) {
+            throw new BusinessRuleException(END_DATE_REQUIRED_TO_CLOSE);
+        }
+        if (stage.getEndDate().isAfter(today)) {
+            throw new BusinessRuleException(END_DATE_IN_FUTURE);
+        }
+        stage.setStatus(StageStatus.CLOSED);
     }
 
     // allowed in any status and also in a closed cycle: the only condition is "no data"

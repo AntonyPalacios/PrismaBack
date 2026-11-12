@@ -19,6 +19,9 @@ public interface StageRepository extends JpaRepository<Stage, Long> {
     // a cycle can only be closed once all its stages are CLOSED
     boolean existsByCycleIdAndStatusNot(Long cycleId, StageStatus status);
 
+    // only one stage of a cycle can be ACTIVE at a time
+    boolean existsByCycleIdAndStatus(Long cycleId, StageStatus status);
+
     // names are unique within a cycle, ignoring case
     boolean existsByCycleIdAndNameIgnoreCase(Long cycleId, String name);
 

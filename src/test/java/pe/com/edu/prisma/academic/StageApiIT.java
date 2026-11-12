@@ -39,8 +39,8 @@ import pe.com.edu.prisma.config.ContainersConfig;
 /**
  * Stages of a cycle (REQ-ACADEMIC-02 + agreements of 2026-11-12): list,
  * create, edit and delete, and the cycle rules that depend on its stages.
- * Stage status changes have no endpoint yet, so the few tests that need a
- * CLOSED stage or cycle set it with plain SQL.
+ * A few tests set a CLOSED stage or cycle with plain SQL to reach that
+ * state directly, without walking through every date rule.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
@@ -433,6 +433,170 @@ class StageApiIT {
         asAdmin(get(stages(cycle))).andExpect(status().isNotFound());
     }
 
+    // ---- status changes: PLANNED → ACTIVE → CLOSED ----
+
+    private long activeCycleId(String name, String startDate, String endDate) throws Exception {
+        long id = cycleId(name, startDate, endDate);
+        asAdmin(patch("/api/v1/cycles/" + id + "/status").content("{\"status\":\"ACTIVE\"}"))
+                .andExpect(status().isOk());
+        return id;
+    }
+
+    private ResultActions changeStatus(long cycleId, long id, String status) throws Exception {
+        return asAdmin(patch(stages(cycleId) + "/" + id + "/status").content("{\"status\":" + quote(status) + "}"));
+    }
+
+    @Test
+    void aStageIsActivatedThenClosedAndThenItsCycleCanBeClosed(CapturedOutput output) throws Exception {
+        long cycle = activeCycleId("En curso", day(-30), day(0));
+        long id = stageId(cycle, "Única", day(-30), day(-1));
+
+        changeStatus(cycle, id, "ACTIVE")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ACTIVE"));
+        changeStatus(cycle, id, "CLOSED")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CLOSED"))
+                .andExpect(jsonPath("$.endDate").value(day(-1)));
+
+        // every stage is closed: now the cycle closes, end to end through the API
+        asAdmin(patch("/api/v1/cycles/" + cycle + "/status").content("{\"status\":\"CLOSED\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CLOSED"));
+
+        assertThat(output.getOut())
+                .contains("Stage status changed: stageId=" + id + " cycleId=" + cycle + " from=PLANNED to=ACTIVE")
+                .contains("Stage status changed: stageId=" + id + " cycleId=" + cycle + " from=ACTIVE to=CLOSED");
+    }
+
+    @Test
+    void aStageIsOnlyActivatedInAnActiveCycle() throws Exception {
+        long cycle = cycleId("Planificado", day(-30), day(30));
+        long id = stageId(cycle, "Primera", day(-30), day(-1));
+
+        changeStatus(cycle, id, "ACTIVE")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail")
+                        .value("Para activar una etapa, su ciclo tiene que estar activo. Activa primero el ciclo."));
+
+        asAdmin(patch("/api/v1/cycles/" + cycle + "/status").content("{\"status\":\"ACTIVE\"}"))
+                .andExpect(status().isOk());
+        changeStatus(cycle, id, "ACTIVE").andExpect(status().isOk());
+    }
+
+    @Test
+    void aStageWithAFutureStartDateCannotBeActivated() throws Exception {
+        long cycle = activeCycleId("En curso", day(-30), day(30));
+        long id = stageId(cycle, "Futura", day(1), day(20));
+
+        changeStatus(cycle, id, "ACTIVE")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value(containsString("su fecha de inicio es futura")));
+        asAdmin(get(stages(cycle) + "/" + id)).andExpect(jsonPath("$.status").value("PLANNED"));
+    }
+
+    @Test
+    void onlyOneStageOfACycleCanBeActive() throws Exception {
+        long cycle = activeCycleId("En curso", day(-30), day(30));
+        long first = stageId(cycle, "Primera", day(-30), day(-10));
+        long second = stageId(cycle, "Segunda", day(-9), day(5));
+        changeStatus(cycle, first, "ACTIVE").andExpect(status().isOk());
+
+        changeStatus(cycle, second, "ACTIVE")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail")
+                        .value("Ya hay otra etapa activa en este ciclo. Ciérrala antes de activar esta."));
+
+        changeStatus(cycle, first, "CLOSED").andExpect(status().isOk());
+        changeStatus(cycle, second, "ACTIVE").andExpect(status().isOk());
+    }
+
+    @Test
+    void stageStatusOnlyMovesForwardOneStepAtATime() throws Exception {
+        String forwardOnly = "Una etapa solo puede avanzar: de planificada a activa y de activa a cerrada.";
+        long cycle = activeCycleId("En curso", day(-30), day(30));
+        long id = stageId(cycle, "Primera", day(-30), day(-1));
+
+        changeStatus(cycle, id, "CLOSED").andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value(forwardOnly));
+        changeStatus(cycle, id, "PLANNED").andExpect(status().isConflict());
+
+        changeStatus(cycle, id, "ACTIVE").andExpect(status().isOk());
+        changeStatus(cycle, id, "ACTIVE").andExpect(status().isConflict());
+        changeStatus(cycle, id, "PLANNED").andExpect(status().isConflict());
+
+        changeStatus(cycle, id, "CLOSED").andExpect(status().isOk());
+        changeStatus(cycle, id, "ACTIVE").andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value(forwardOnly));
+        changeStatus(cycle, id, "CLOSED").andExpect(status().isConflict());
+    }
+
+    @Test
+    void aStageWithoutEndDateCannotBeClosed() throws Exception {
+        long cycle = activeCycleId("En curso", day(-30), day(30));
+        long id = stageId(cycle, "Abierta", day(-30), null);
+        changeStatus(cycle, id, "ACTIVE").andExpect(status().isOk());
+
+        changeStatus(cycle, id, "CLOSED")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("Esta etapa no tiene fecha de fin. Defínela antes de cerrarla."));
+
+        // once the admin sets it, the stage closes
+        edit(cycle, id, "Abierta", day(-30), day(-1)).andExpect(status().isOk());
+        changeStatus(cycle, id, "CLOSED").andExpect(status().isOk());
+    }
+
+    @Test
+    void aStageIsNeverClosedBeforeItsEndDateAndTheSystemDoesNotChangeIt() throws Exception {
+        long cycle = activeCycleId("En curso", day(-30), day(30));
+        long id = stageId(cycle, "En marcha", day(-30), day(10));
+        changeStatus(cycle, id, "ACTIVE").andExpect(status().isOk());
+
+        // unlike a cycle there is no confirmation: the answer is a plain 409
+        changeStatus(cycle, id, "CLOSED")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value(containsString("corrige primero su fecha de fin")))
+                .andExpect(jsonPath("$.requiresConfirmation").doesNotExist());
+        asAdmin(get(stages(cycle) + "/" + id))
+                .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.endDate").value(day(10)));
+
+        // the user corrects the end date to today, and then it closes
+        edit(cycle, id, "En marcha", day(-30), day(0)).andExpect(status().isOk());
+        changeStatus(cycle, id, "CLOSED")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.endDate").value(day(0)));
+    }
+
+    @Test
+    void aStageThatHasNotStartedCannotBeClosed() throws Exception {
+        long cycle = activeCycleId("En curso", day(-30), day(30));
+        long id = stageId(cycle, "Movida", day(-1), day(20));
+        changeStatus(cycle, id, "ACTIVE").andExpect(status().isOk());
+        // an active stage can still be edited: its start is pushed into the future
+        edit(cycle, id, "Movida", day(5), day(20)).andExpect(status().isOk());
+
+        changeStatus(cycle, id, "CLOSED")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail")
+                        .value("Esta etapa aún no empieza, así que no se puede cerrar. Corrige su fecha de inicio."));
+    }
+
+    @Test
+    void invalidStageStatusRequestsAnswer400Or404() throws Exception {
+        long cycle = activeCycleId("En curso", day(-30), day(30));
+        long other = cycleId("Siguiente", day(31), day(60));
+        long id = stageId(cycle, "Primera", day(-30), day(-1));
+
+        asAdmin(patch(stages(cycle) + "/" + id + "/status").content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Indica el nuevo estado de la etapa."));
+        changeStatus(cycle, id, "ARCHIVED").andExpect(status().isBadRequest());
+
+        changeStatus(cycle, 999999, "ACTIVE").andExpect(status().isNotFound());
+        changeStatus(other, id, "ACTIVE").andExpect(status().isNotFound());
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"TUTOR", "COORDINADOR"})
     void onlyAdminsWriteButEveryRoleReads(String role) throws Exception {
@@ -445,6 +609,8 @@ class StageApiIT {
         as(role, put(stages(cycle) + "/" + id).content(body("x", "2026-03-01", null)))
                 .andExpect(status().isForbidden());
         as(role, delete(stages(cycle) + "/" + id)).andExpect(status().isForbidden());
+        as(role, patch(stages(cycle) + "/" + id + "/status").content("{\"status\":\"ACTIVE\"}"))
+                .andExpect(status().isForbidden());
     }
 
     @Test
