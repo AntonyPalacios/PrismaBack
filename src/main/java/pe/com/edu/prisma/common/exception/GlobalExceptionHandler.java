@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -67,6 +68,14 @@ public class GlobalExceptionHandler {
         // no exception message: it quotes the body that was sent
         log.info("400 on {}: unreadable request body", describe(request));
         return problem(HttpStatus.BAD_REQUEST, "No pudimos leer los datos enviados. Revisa el formato e inténtalo de nuevo.");
+    }
+
+    // e.g. GET /api/v1/enrollments without studentId: a 400, never the generic 500 below
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ProblemDetail handleMissingParameter(MissingServletRequestParameterException ex,
+            HttpServletRequest request) {
+        log.info("400 on {}: missing parameter {}", describe(request), ex.getParameterName());
+        return problem(HttpStatus.BAD_REQUEST, "Falta un dato obligatorio en la consulta.");
     }
 
     @ExceptionHandler(AccessDeniedException.class)

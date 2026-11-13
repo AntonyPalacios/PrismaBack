@@ -22,7 +22,7 @@ Los tutores (psicólogos) acompañan a los alumnos con simulacros semanales, sig
 - **Roles:** `ADMIN`, `TUTOR`, `COORDINADOR` (todo el módulo de exámenes salvo la recarga forzada, que es solo de Admin).
 - **Admin permanente (inmutable):** `apalaciosc0109@gmail.com` (Antony Palacios Coronado) es siempre `ADMIN`. Se siembra por migración y ningún flujo de la app puede desactivarlo ni quitarle ese rol (el backend responde 409). Por eso no existe la regla de "último admin activo".
 - **Usuarios:** los gestiona solo ADMIN en "Usuarios": crear, editar nombres y roles, desactivar (soft-delete) y reactivar. Correo único sin distinguir mayúsculas (se guarda en minúsculas) y no editable. Al menos un rol; se permiten varios a la vez.
-- **Alumnos:** `ADMIN` y `TUTOR` los registran y editan; `COORDINADOR` solo los consulta y busca. Nombres y apellido paterno obligatorios; apellido materno, DNI, correo, teléfono y fecha de nacimiento opcionales. El DNI tiene de 8 a 12 letras o números (DNI peruano o carné de extranjería) y es único cuando se registra. El listado no se pagina por ahora (se busca por nombre o DNI). **Baja (borrado lógico, solo ADMIN):** un alumno dado de baja deja de listarse por defecto, pero todos los roles pueden verlo con "Mostrar inactivos" y abrir su ficha; no se edita hasta reactivarlo, y la baja no toca su historial.
+- **Alumnos:** `ADMIN` y `TUTOR` los registran y editan; `COORDINADOR` solo los consulta y busca. Nombres y apellido paterno obligatorios; apellido materno, DNI, correo, teléfono y fecha de nacimiento opcionales. El DNI tiene de 8 a 12 letras o números (DNI peruano o carné de extranjería) y es único cuando se registra. El listado no se pagina por ahora (se busca por nombre o DNI). **Baja (borrado lógico, solo ADMIN):** un alumno dado de baja deja de listarse por defecto, pero todos los roles pueden verlo con "Mostrar inactivos" y abrir su ficha; no se edita hasta reactivarlo, y la baja no toca su historial. **Matrícula:** desde la ficha del alumno, `ADMIN` y `TUTOR` lo matriculan en una etapa de un ciclo no cerrado (carrera opcional y editable), una sola vez por etapa (aunque se haya retirado), y lo retiran de la etapa (borrado lógico, sin reincorporación por ahora). No se matricula a un alumno dado de baja ni con una carrera inactiva. Las matrículas retiradas o de un ciclo cerrado son de solo lectura. `COORDINADOR` no ve matrículas. Por ahora un tutor puede matricular a cualquier alumno (se restringe con tutoría).
 - **Primer tutor:** `silvia.valleg@prisma.edu.pe` (Silvia Valle Gómez) (sembrado junto al admin).
 - **Usuarios finales:** tutores, coordinadores y Silvia (administración). La UI va en español.
 - **Fase 2 (fuera del MVP):** reportes PDF con IA para apoderados, asistencia.
@@ -159,9 +159,9 @@ Sistema Prisma/
 
 ---
 
-## 5. Estado actual (2026-11-12)
+## 5. Estado actual (2026-11-13)
 
-Backend en Spring Boot 4.1.2. Login, catálogo, usuarios, logs, ciclos, etapas y la primera rebanada de alumnos están mergeados en `main`. Rebanada en curso: baja y reactivación de alumnos.
+Backend en Spring Boot 4.1.2. Login, catálogo, usuarios, logs, ciclos, etapas, alumnos (listar, registrar, editar, baja y reactivación) están mergeados en `main`. Rebanada en curso: matrícula en etapa.
 
 | Módulo | Backend | Frontend |
 |---|---|---|
@@ -170,7 +170,7 @@ Backend en Spring Boot 4.1.2. Login, catálogo, usuarios, logs, ciclos, etapas y
 | users (gestión de usuarios y roles) | ✅ | ✅ pantalla Usuarios |
 | logs (archivo rotativo, `traceId` como `errorId`, aspecto en controllers, máscaras) | ✅ (PrismaBack#69) | — (no aplica) |
 | academic (ciclos y etapas) | 🟡 ciclos ✅ (PrismaBack#71, #73); etapas ✅ (PrismaBack#75, #77). Falta el cierre automático y ciclo/etapa actual (`GET …/current`, entran con la primera pantalla que los use) | 🟡 pantalla Ciclos ✅ (PrismaFront#53, #55); sección Etapas ✅ (PrismaFront#57, #59) |
-| students | 🟡 listar, buscar, registrar y editar ✅ (PrismaBack#83); baja y reactivación en curso (PrismaBack#84). Falta matrícula, apoderados e importación | 🟡 pantalla Alumnos ✅ (PrismaFront#65); baja y reactivación en curso (PrismaFront#66) |
+| students | 🟡 listar, buscar, registrar y editar ✅ (PrismaBack#83); baja y reactivación ✅ (PrismaBack#84); matrícula en curso (PrismaBack#88). Falta apoderados, matriculación masiva e importación | 🟡 pantalla Alumnos ✅ (PrismaFront#65); baja y reactivación ✅ (PrismaFront#66); sección Matrículas en curso (PrismaFront#70) |
 | tutoring, exams, imports, goals, logbook, dashboards | ❌ (el esquema ya existe en V1) | ❌ |
 
 Pendientes de esquema:
@@ -211,6 +211,7 @@ Resueltos el 2026-11-09: Spring Boot → 4.1.x · se mantiene JavaScript · dos 
 ---
 
 ## Historial de cambios
+- **2026-11-13** — (cat. C) Matrícula en etapa (PrismaBack#88, PrismaFront#70): se gestiona desde la ficha del alumno; `GET /enrollments?studentId=` trae los nombres de ciclo, etapa y carrera y sus estados; además de lo de REQ-STUDENTS-02, no se matricula a un alumno dado de baja ni con una carrera inactiva, una matrícula retirada o de un ciclo cerrado es de solo lectura (409), una matrícula retirada sigue ocupando su etapa (no hay reincorporación por ahora) y `COORDINADOR` no ve matrículas (403). Un tutor puede matricular a cualquier alumno hasta la rebanada de tutoría.
 - **2026-11-13** — (cat. C) Análisis de los Excel reales de resultados y del Historial de Antony (`specs/hallazgos-excel-resultados-2026-11-13.md`). Importación (REQ-EXAMS-02/04): fila válida = nombre de texto, DNI o nombre repetido rechaza el archivo, el título valida el tipo de examen, "no asistió" = 0 buenas y 0 malas, se guarda el puntaje por área (requiere migración) y nunca se recalcula. Metas (REQ-GOALS-01): meta individual sugerida = buenas del último examen rendido + 2, editable. Dashboards: mérito calculado en el tooltip y gráfico aparte de Lectura/Matemática (01), buenas y malas totales del alumno (03), promedio de buenas por curso del grupo y el 0 cuenta para el mínimo (05). Se descartan el rango de ingreso por carrera y los gráficos de intervalo; la meta de puntaje (+10 %) y el cuadro de efectivas del grupo por alumno quedan para la versión 2.
 - **2026-11-12** — (cat. C) Alumnos, baja y reactivación (PrismaBack#84, PrismaFront#66): solo `ADMIN` da de baja (`DELETE` → 204) y reactiva (`POST …/reactivate`); repetir la acción responde 409. `GET /students?includeInactive=true` y la ficha de un inactivo sirven para **todos los roles** (el tutor revisa cómo le iba al alumno antes de retirarse). Un alumno inactivo no se edita hasta reactivarlo (409).
 - **2026-11-12** — (cat. D) Docker (PrismaBack#81, PrismaFront#63): `Dockerfile` por repo y `docker-compose.full.yml` en PrismaBack para levantar todo con solo Docker en `http://localhost:8080`, con Caddy como única entrada (mismo origen para la cookie y el CSRF). Publicar imágenes en GHCR queda para la rebanada de CD.
