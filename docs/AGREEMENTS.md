@@ -2,7 +2,7 @@
 
 > Archivo de contexto para cualquier persona o agente que trabaje en este proyecto.
 > Es la **fuente única de acuerdos**. Si un acuerdo cambia, se cambia aquí (y se anota en el historial al final).
-> Última revisión: 2026-11-10 — **borrador pendiente de revisión** (ver sección "Por revisar").
+> Última revisión: 2026-11-13 — **borrador pendiente de revisión** (ver sección "Por revisar").
 
 ---
 
@@ -147,8 +147,11 @@ Sistema Prisma/
 ### 4.4 Dominio: Excel de resultados (hoja `EVA`)
 - Encabezados en las filas 9 y 11; los datos empiezan en la fila 12.
 - Por alumno: mérito, DNI, nombre, triples B/M/BL por curso, puntajes por área, total y `TUTOR(A)` (solo el primer nombre).
-- **No asistió:** total = 80 y BL = total de preguntas en todos los cursos. Se importa con `attended=false` y se excluye de estadísticas.
-- **Filas basura** (nombre, DNI y tutor iguales a un número pequeño): se saltan sin pasar por la cola, pero se reportan en el conteo.
+- **Puntajes:** total = 20 % del puntaje del colegio (fijo: 80 puntos) + 80 % de Lectura y Matemática ponderadas (**Ciencias 40/60, Letras y Arquitectura 50/50**). El puntaje de cada área sale de una tabla de conversión por cantidad de buenas (las malas no restan) que cambia por tipo de examen. El sistema **guarda el total y el puntaje por área tal como vienen, nunca los recalcula**.
+- La cantidad de preguntas por curso cambia en cada examen (es dato del examen, no del tipo).
+- **No asistió:** 0 buenas y 0 malas en todos los cursos (en el Excel queda con total = 80). Se importa con `attended=false` y se excluye de estadísticas.
+- **Filas basura:** toda fila cuyo nombre no sea texto (vacía, numérica o con DNI pero sin nombre, restos de ordenar la hoja). Se saltan sin pasar por la cola, pero se reportan en el conteo. Un DNI o nombre repetido entre las filas válidas rechaza el archivo.
+- El título de la hoja (B5) dice el área: si menciona otro tipo de examen, el archivo se rechaza. El mérito, la fecha de cabecera, `CONDICIÓN` y los datos del colegio se ignoran; el mérito lo calcula el sistema.
 - **Tutor:** match contra tutores activos; si no hay match va a la cola de revisión. Las colisiones de nombre se resuelven en el Excel, no en el sistema.
 - La columna "Geometría y Trigonometría" de Arquitectura es un error de la plantilla: corresponde solo a Geometría.
 - Una carga duplicada se bloquea a nivel de examen completo. La recarga forzada es solo de Admin.
@@ -208,6 +211,7 @@ Resueltos el 2026-11-09: Spring Boot → 4.1.x · se mantiene JavaScript · dos 
 ---
 
 ## Historial de cambios
+- **2026-11-13** — (cat. C) Análisis de los Excel reales de resultados y del Historial de Antony (`specs/hallazgos-excel-resultados-2026-11-13.md`). Importación (REQ-EXAMS-02/04): fila válida = nombre de texto, DNI o nombre repetido rechaza el archivo, el título valida el tipo de examen, "no asistió" = 0 buenas y 0 malas, se guarda el puntaje por área (requiere migración) y nunca se recalcula. Metas (REQ-GOALS-01): meta individual sugerida = buenas del último examen rendido + 2, editable. Dashboards: mérito calculado en el tooltip y gráfico aparte de Lectura/Matemática (01), buenas y malas totales del alumno (03), promedio de buenas por curso del grupo y el 0 cuenta para el mínimo (05). Se descartan el rango de ingreso por carrera y los gráficos de intervalo; la meta de puntaje (+10 %) y el cuadro de efectivas del grupo por alumno quedan para la versión 2.
 - **2026-11-12** — (cat. C) Alumnos, baja y reactivación (PrismaBack#84, PrismaFront#66): solo `ADMIN` da de baja (`DELETE` → 204) y reactiva (`POST …/reactivate`); repetir la acción responde 409. `GET /students?includeInactive=true` y la ficha de un inactivo sirven para **todos los roles** (el tutor revisa cómo le iba al alumno antes de retirarse). Un alumno inactivo no se edita hasta reactivarlo (409).
 - **2026-11-12** — (cat. D) Docker (PrismaBack#81, PrismaFront#63): `Dockerfile` por repo y `docker-compose.full.yml` en PrismaBack para levantar todo con solo Docker en `http://localhost:8080`, con Caddy como única entrada (mismo origen para la cookie y el CSRF). Publicar imágenes en GHCR queda para la rebanada de CD.
 - **2026-11-12** — (cat. D) CI con GitHub Actions en PrismaBack y PrismaFront (PrismaBack#79, PrismaFront#61): corre en PRs y en `main`, cancela corridas viejas del mismo PR, omite los cambios solo de documentación y `main` exige el check en verde para mergear.
