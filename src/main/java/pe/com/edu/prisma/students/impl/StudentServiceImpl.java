@@ -24,6 +24,9 @@ import pe.com.edu.prisma.students.mapper.StudentMapper;
 public class StudentServiceImpl implements StudentService {
 
     static final String DUPLICATE_DNI = "Ya existe un alumno con ese DNI.";
+    static final String ALREADY_INACTIVE = "Este alumno ya está dado de baja.";
+    static final String ALREADY_ACTIVE = "Este alumno ya está activo.";
+    static final String INACTIVE_NOT_EDITABLE = "Este alumno está dado de baja: reactívalo para editar sus datos.";
 
     private static final Logger log = LoggerFactory.getLogger(StudentServiceImpl.class);
 
@@ -45,9 +48,10 @@ public class StudentServiceImpl implements StudentService {
     // memory, which is what lets the search ignore case and accents the same
     // way the order does. Revisit (pagination, SQL search) if that changes.
     @Override
-    public List<StudentDto> findAll(String search) {
+    public List<StudentDto> findAll(String search, boolean includeInactive) {
         String wanted = normalize(search);
-        return studentRepository.findByActiveTrue().stream()
+        List<Student> students = includeInactive ? studentRepository.findAll() : studentRepository.findByActiveTrue();
+        return students.stream()
                 .filter(student -> wanted.isEmpty() || matches(student, wanted))
                 .sorted(ORDER)
                 .map(studentMapper::toDto)
@@ -76,11 +80,37 @@ public class StudentServiceImpl implements StudentService {
     @Transactional
     public StudentDto update(Long id, UpsertStudentRequest request) {
         Student student = getOrThrow(id);
+        if (!student.isActive()) {
+            throw new BusinessRuleException(INACTIVE_NOT_EDITABLE);
+        }
         if (request.dni() != null && studentRepository.existsByDniAndIdNot(request.dni(), id)) {
             throw new BusinessRuleException(DUPLICATE_DNI);
         }
         apply(student, request);
         log.info("Student updated: studentId={}", id);
+        return studentMapper.toDto(student);
+    }
+
+    @Override
+    @Transactional
+    public void deactivate(Long id) {
+        Student student = getOrThrow(id);
+        if (!student.isActive()) {
+            throw new BusinessRuleException(ALREADY_INACTIVE);
+        }
+        student.setActive(false); // exams, goals, logbook and enrollments stay as they are
+        log.info("Student deactivated: studentId={}", id);
+    }
+
+    @Override
+    @Transactional
+    public StudentDto reactivate(Long id) {
+        Student student = getOrThrow(id);
+        if (student.isActive()) {
+            throw new BusinessRuleException(ALREADY_ACTIVE);
+        }
+        student.setActive(true);
+        log.info("Student reactivated: studentId={}", id);
         return studentMapper.toDto(student);
     }
 

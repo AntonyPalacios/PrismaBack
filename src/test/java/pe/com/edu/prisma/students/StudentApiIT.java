@@ -34,7 +34,8 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import pe.com.edu.prisma.config.ContainersConfig;
 
 /**
- * Students (REQ-STUDENTS-01): list, search, register and edit. No student
+ * Students (REQ-STUDENTS-01, -04): list, search, register, edit, retire and
+ * reactivate. No student
  * is seeded, so every test starts from an empty table. The people here are
  * invented.
  */
@@ -240,10 +241,90 @@ class StudentApiIT {
     }
 
     @Test
-    void studentsCannotBeDeletedThroughTheApi() throws Exception {
+    void adminRetiresAndReactivatesAStudentWithoutTouchingTheirData(CapturedOutput output) throws Exception {
+        long id = createdId("Lucía", "Quispe", "Mamani", "72345678");
+
+        asAdmin(delete("/api/v1/students/" + id)).andExpect(status().isNoContent());
+        // still there, only inactive: the row is never physically deleted
+        asAdmin(get("/api/v1/students/" + id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.active").value(false))
+                .andExpect(jsonPath("$.dni").value("72345678"));
+
+        asAdmin(post("/api/v1/students/" + id + "/reactivate"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.active").value(true))
+                .andExpect(jsonPath("$.firstName").value("Lucía"))
+                .andExpect(jsonPath("$.lastNameMat").value("Mamani"))
+                .andExpect(jsonPath("$.dni").value("72345678"));
+
+        assertThat(output.getOut())
+                .contains("Student deactivated: studentId=" + id)
+                .contains("Student reactivated: studentId=" + id);
+    }
+
+    @Test
+    void retiringAnInactiveOrReactivatingAnActiveStudentAnswers409() throws Exception {
         long id = createdId("Lucía", "Quispe", null, null);
 
-        asAdmin(delete("/api/v1/students/" + id)).andExpect(status().isMethodNotAllowed());
+        asAdmin(post("/api/v1/students/" + id + "/reactivate"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("Este alumno ya está activo."));
+        asAdmin(delete("/api/v1/students/" + id)).andExpect(status().isNoContent());
+        asAdmin(delete("/api/v1/students/" + id))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("Este alumno ya está dado de baja."));
+    }
+
+    @Test
+    void anInactiveStudentCannotBeEditedUntilReactivated() throws Exception {
+        long id = createdId("Lucía", "Quispe", null, null);
+        asAdmin(delete("/api/v1/students/" + id)).andExpect(status().isNoContent());
+
+        asAdmin(put("/api/v1/students/" + id).content(body("Lucía", "Quispe", "Mamani", null)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("Este alumno está dado de baja: reactívalo para editar sus datos."));
+
+        asAdmin(post("/api/v1/students/" + id + "/reactivate")).andExpect(status().isOk());
+        asAdmin(put("/api/v1/students/" + id).content(body("Lucía", "Quispe", "Mamani", null)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void inactiveStudentsAreListedOnlyOnRequestAndStillSearchable() throws Exception {
+        createdId("Mateo", "Rojas", null, null);
+        long retired = createdId("Lucía", "Quispe", null, "72345678");
+        asAdmin(delete("/api/v1/students/" + retired)).andExpect(status().isNoContent());
+
+        assertThat(listedSurnames("")).containsExactly("Rojas");
+        assertThat(listedSurnames("?includeInactive=false")).containsExactly("Rojas");
+        assertThat(listedSurnames("?includeInactive=true")).containsExactly("Quispe", "Rojas");
+        assertThat(listedSurnames("?search=7234")).isEmpty();
+        assertThat(listedSurnames("?search=7234&includeInactive=true")).containsExactly("Quispe");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"TUTOR", "COORDINADOR"})
+    void everyRoleSeesInactiveStudentsButOnlyAdminRetiresOrReactivates(String role) throws Exception {
+        long id = createdId("Lucía", "Quispe", null, null);
+
+        as(role, delete("/api/v1/students/" + id)).andExpect(status().isForbidden());
+        asAdmin(delete("/api/v1/students/" + id)).andExpect(status().isNoContent());
+        as(role, post("/api/v1/students/" + id + "/reactivate")).andExpect(status().isForbidden());
+
+        as(role, get("/api/v1/students?includeInactive=true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(id))
+                .andExpect(jsonPath("$[0].active").value(false));
+        as(role, get("/api/v1/students/" + id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.active").value(false));
+    }
+
+    @Test
+    void retiringOrReactivatingAnUnknownStudentAnswers404() throws Exception {
+        asAdmin(delete("/api/v1/students/999999")).andExpect(status().isNotFound());
+        asAdmin(post("/api/v1/students/999999/reactivate")).andExpect(status().isNotFound());
     }
 
     @Test
