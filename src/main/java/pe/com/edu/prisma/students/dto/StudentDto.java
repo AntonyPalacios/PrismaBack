@@ -2,6 +2,10 @@ package pe.com.edu.prisma.students.dto;
 
 import java.time.LocalDate;
 
+/**
+ * A student's file plus where they stand today: the stage and tutor of their
+ * current enrollment (null when they have none, or no tutor yet).
+ */
 public record StudentDto(
         Long id,
         String firstName,
@@ -11,6 +15,9 @@ public record StudentDto(
         String email,
         String phone,
         LocalDate birthDate,
-        boolean active
+        boolean active,
+        String currentStageName,
+        Long tutorId,
+        String tutorName
 ) {
 }

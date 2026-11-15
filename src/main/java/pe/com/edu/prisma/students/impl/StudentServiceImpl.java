@@ -4,20 +4,28 @@ import java.text.Normalizer;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pe.com.edu.prisma.common.SpanishOrder;
 import pe.com.edu.prisma.common.exception.BusinessRuleException;
 import pe.com.edu.prisma.common.exception.ResourceNotFoundException;
+import pe.com.edu.prisma.security.CurrentUser;
+import pe.com.edu.prisma.students.CurrentEnrollments;
+import pe.com.edu.prisma.students.CurrentEnrollments.Current;
 import pe.com.edu.prisma.students.Student;
 import pe.com.edu.prisma.students.StudentRepository;
 import pe.com.edu.prisma.students.StudentService;
 import pe.com.edu.prisma.students.dto.StudentDto;
 import pe.com.edu.prisma.students.dto.UpsertStudentRequest;
+import pe.com.edu.prisma.students.dto.StudentFilter;
 import pe.com.edu.prisma.students.mapper.StudentMapper;
+import pe.com.edu.prisma.users.Role;
 
 @Service
 @Transactional(readOnly = true)
@@ -36,31 +44,50 @@ public class StudentServiceImpl implements StudentService {
             .thenComparing(SpanishOrder.by(Student::getFirstName))
             .thenComparing(Student::getId);
 
+    static final String ONLY_ADMIN_FILTERS = "Solo el administrador puede filtrar alumnos por tutor.";
+    static final String NOT_THEIR_TUTOR = "Solo el administrador o el tutor actual del alumno pueden editar sus datos.";
+
     private final StudentRepository studentRepository;
     private final StudentMapper studentMapper;
+    private final CurrentEnrollments currentEnrollments;
+    private final CurrentUser currentUser;
 
-    public StudentServiceImpl(StudentRepository studentRepository, StudentMapper studentMapper) {
+    public StudentServiceImpl(StudentRepository studentRepository, StudentMapper studentMapper,
+            CurrentEnrollments currentEnrollments, CurrentUser currentUser) {
         this.studentRepository = studentRepository;
         this.studentMapper = studentMapper;
+        this.currentEnrollments = currentEnrollments;
+        this.currentUser = currentUser;
     }
 
     // The academy has a few hundred students: they are filtered and sorted in
     // memory, which is what lets the search ignore case and accents the same
     // way the order does. Revisit (pagination, SQL search) if that changes.
     @Override
-    public List<StudentDto> findAll(String search, boolean includeInactive) {
-        String wanted = normalize(search);
-        List<Student> students = includeInactive ? studentRepository.findAll() : studentRepository.findByActiveTrue();
+    public List<StudentDto> findAll(StudentFilter filter) {
+        boolean admin = currentUser.hasRole(Role.ADMIN);
+        boolean filtersByTutor = filter.tutorId() != null || filter.withoutTutor();
+        if (filtersByTutor && !admin) {
+            throw new AccessDeniedException(ONLY_ADMIN_FILTERS);
+        }
+        // a tutor (who is not also an admin) only lists the students assigned to them today
+        Long tutorId = !admin && currentUser.hasRole(Role.TUTOR) ? myId() : filter.tutorId();
+
+        String wanted = normalize(filter.search());
+        Map<Long, Current> current = currentEnrollments.byStudent();
+        List<Student> students = filter.includeInactive() ? studentRepository.findAll() : studentRepository.findByActiveTrue();
         return students.stream()
                 .filter(student -> wanted.isEmpty() || matches(student, wanted))
+                .filter(student -> tutorId == null || tutorId.equals(tutorOf(current.get(student.getId()))))
+                .filter(student -> !filter.withoutTutor() || tutorOf(current.get(student.getId())) == null)
                 .sorted(ORDER)
-                .map(studentMapper::toDto)
+                .map(student -> studentMapper.toDto(student, current.get(student.getId())))
                 .toList();
     }
 
     @Override
     public StudentDto findById(Long id) {
-        return studentMapper.toDto(getOrThrow(id));
+        return toDto(getOrThrow(id));
     }
 
     @Override
@@ -73,13 +100,18 @@ public class StudentServiceImpl implements StudentService {
         apply(student, request);
         Student saved = studentRepository.save(student);
         log.info("Student created: studentId={}", saved.getId()); // only the id: the rest is personal data
-        return studentMapper.toDto(saved);
+        return studentMapper.toDto(saved, null); // born without enrollment
     }
 
     @Override
     @Transactional
     public StudentDto update(Long id, UpsertStudentRequest request) {
         Student student = getOrThrow(id);
+        Current current = currentEnrollments.of(id).orElse(null);
+        // only an admin or the student's current tutor; no exception for whoever registered them
+        if (!currentUser.hasRole(Role.ADMIN) && !Objects.equals(myId(), tutorOf(current))) {
+            throw new AccessDeniedException(NOT_THEIR_TUTOR);
+        }
         if (!student.isActive()) {
             throw new BusinessRuleException(INACTIVE_NOT_EDITABLE);
         }
@@ -88,7 +120,7 @@ public class StudentServiceImpl implements StudentService {
         }
         apply(student, request);
         log.info("Student updated: studentId={}", id);
-        return studentMapper.toDto(student);
+        return studentMapper.toDto(student, current);
     }
 
     @Override
@@ -111,7 +143,7 @@ public class StudentServiceImpl implements StudentService {
         }
         student.setActive(true);
         log.info("Student reactivated: studentId={}", id);
-        return studentMapper.toDto(student);
+        return toDto(student);
     }
 
     /** Every word typed must appear in the student's names or DNI ("palacios ant", "7234"). */
@@ -141,6 +173,20 @@ public class StudentServiceImpl implements StudentService {
         student.setEmail(request.email());
         student.setPhone(request.phone());
         student.setBirthDate(request.birthDate());
+    }
+
+    private StudentDto toDto(Student student) {
+        return studentMapper.toDto(student, currentEnrollments.of(student.getId()).orElse(null));
+    }
+
+    private static Long tutorOf(Current current) {
+        return current == null ? null : current.tutorId();
+    }
+
+    /** The caller's id; a session without one (never in practice) matches no tutor. */
+    private Long myId() {
+        Long id = currentUser.id();
+        return id == null ? -1L : id;
     }
 
     private Student getOrThrow(Long id) {

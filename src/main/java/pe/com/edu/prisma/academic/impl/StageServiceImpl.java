@@ -3,6 +3,7 @@ package pe.com.edu.prisma.academic.impl;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -205,6 +206,13 @@ public class StageServiceImpl implements StageService {
             }
         }
         return currentId;
+    }
+
+    @Override
+    public Optional<Stage> findCurrent(Long cycleId) {
+        List<Stage> stages = stageRepository.findByCycleIdOrderByStartDateAscIdAsc(cycleId);
+        Long currentId = currentStageId(stages);
+        return stages.stream().filter(stage -> stage.getId().equals(currentId)).findFirst();
     }
 
     private StageDto toDto(Stage stage) {

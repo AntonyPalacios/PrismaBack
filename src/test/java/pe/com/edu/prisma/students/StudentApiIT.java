@@ -313,10 +313,13 @@ class StudentApiIT {
         asAdmin(delete("/api/v1/students/" + id)).andExpect(status().isNoContent());
         as(role, post("/api/v1/students/" + id + "/reactivate")).andExpect(status().isForbidden());
 
-        as(role, get("/api/v1/students?includeInactive=true"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(id))
-                .andExpect(jsonPath("$[0].active").value(false));
+        // the list of a tutor only has their own students: see StudentsByTutorApiIT
+        if (role.equals("COORDINADOR")) {
+            as(role, get("/api/v1/students?includeInactive=true"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$[0].id").value(id))
+                    .andExpect(jsonPath("$[0].active").value(false));
+        }
         as(role, get("/api/v1/students/" + id))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.active").value(false));
@@ -352,14 +355,15 @@ class StudentApiIT {
     }
 
     @Test
-    void aTutorAlsoRegistersAndEditsStudents() throws Exception {
+    void aTutorRegistersStudentsButOnlyTheirCurrentTutorEditsThem() throws Exception {
         String json = as("TUTOR", post("/api/v1/students").content(body("Lucía", "Quispe", null, null)))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         long id = ((Number) JsonPath.read(json, "$.id")).longValue();
 
+        // no exception for whoever registered them: without a tutor, only an admin edits (StudentsByTutorApiIT)
         as("TUTOR", put("/api/v1/students/" + id).content(body("Lucía", "Quispe", "Mamani", null)))
-                .andExpect(status().isOk());
+                .andExpect(status().isForbidden());
         as("TUTOR", get("/api/v1/students")).andExpect(status().isOk());
     }
 
