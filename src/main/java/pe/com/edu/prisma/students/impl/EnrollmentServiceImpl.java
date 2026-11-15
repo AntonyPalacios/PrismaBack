@@ -1,7 +1,11 @@
 package pe.com.edu.prisma.students.impl;
 
+import java.time.Clock;
+import java.time.OffsetDateTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -22,6 +26,9 @@ import pe.com.edu.prisma.students.dto.CreateEnrollmentRequest;
 import pe.com.edu.prisma.students.dto.EnrollmentDto;
 import pe.com.edu.prisma.students.dto.UpdateEnrollmentRequest;
 import pe.com.edu.prisma.students.mapper.EnrollmentMapper;
+import pe.com.edu.prisma.tutoring.TutorAssignment;
+import pe.com.edu.prisma.tutoring.TutorAssignmentRepository;
+import pe.com.edu.prisma.users.User;
 
 @Service
 @Transactional(readOnly = true)
@@ -50,14 +57,19 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     private final StageRepository stageRepository;
     private final CareerRepository careerRepository;
     private final EnrollmentMapper enrollmentMapper;
+    private final TutorAssignmentRepository tutorAssignmentRepository;
+    private final Clock clock;
 
     public EnrollmentServiceImpl(EnrollmentRepository enrollmentRepository, StudentRepository studentRepository,
-            StageRepository stageRepository, CareerRepository careerRepository, EnrollmentMapper enrollmentMapper) {
+            StageRepository stageRepository, CareerRepository careerRepository, EnrollmentMapper enrollmentMapper,
+            TutorAssignmentRepository tutorAssignmentRepository, Clock clock) {
         this.enrollmentRepository = enrollmentRepository;
         this.studentRepository = studentRepository;
         this.stageRepository = stageRepository;
         this.careerRepository = careerRepository;
         this.enrollmentMapper = enrollmentMapper;
+        this.tutorAssignmentRepository = tutorAssignmentRepository;
+        this.clock = clock;
     }
 
     @Override
@@ -65,9 +77,14 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         if (!studentRepository.existsById(studentId)) {
             throw new ResourceNotFoundException(STUDENT_NOT_FOUND);
         }
-        return enrollmentRepository.findByStudentId(studentId).stream()
+        List<Enrollment> enrollments = enrollmentRepository.findByStudentId(studentId);
+        // the current tutor of each enrollment, in one query
+        Map<Long, User> tutors = tutorAssignmentRepository
+                .findByEnrollmentIdInAndValidToIsNull(enrollments.stream().map(Enrollment::getId).toList()).stream()
+                .collect(Collectors.toMap(a -> a.getEnrollment().getId(), TutorAssignment::getTutor));
+        return enrollments.stream()
                 .sorted(NEWEST_FIRST)
-                .map(enrollmentMapper::toDto)
+                .map(enrollment -> enrollmentMapper.toDto(enrollment, tutors.get(enrollment.getId())))
                 .toList();
     }
 
@@ -100,7 +117,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         Enrollment saved = enrollmentRepository.save(enrollment);
         log.info("Student enrolled: enrollmentId={} studentId={} stageId={}",
                 saved.getId(), student.getId(), stage.getId());
-        return enrollmentMapper.toDto(saved);
+        return enrollmentMapper.toDto(saved, null); // born without a tutor
     }
 
     @Override
@@ -116,7 +133,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         }
         enrollment.setCareer(career);
         log.info("Enrollment career changed: enrollmentId={} careerId={}", id, request.careerId());
-        return enrollmentMapper.toDto(enrollment);
+        return enrollmentMapper.toDto(enrollment, currentTutor(id));
     }
 
     @Override
@@ -124,7 +141,16 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     public void withdraw(Long id) {
         Enrollment enrollment = getEditable(id);
         enrollment.setActive(false); // its history and the student's other stages stay as they are
+        // nobody tutors a student in a stage they left: the current assignment ends today
+        tutorAssignmentRepository.findByEnrollmentIdAndValidToIsNull(id)
+                .ifPresent(assignment -> assignment.setValidTo(OffsetDateTime.now(clock)));
         log.info("Student withdrawn from stage: enrollmentId={}", id);
+    }
+
+    private User currentTutor(Long enrollmentId) {
+        return tutorAssignmentRepository.findByEnrollmentIdAndValidToIsNull(enrollmentId)
+                .map(TutorAssignment::getTutor)
+                .orElse(null);
     }
 
     private Career findCareer(Long careerId) {

@@ -63,6 +63,7 @@ class StageApiIT {
     @AfterEach
     void emptyTables() {
         jdbc.update("DELETE FROM exam");
+        jdbc.update("DELETE FROM tutor_assignment");
         jdbc.update("DELETE FROM student_stage");
         jdbc.update("DELETE FROM student");
         jdbc.update("DELETE FROM stage");
