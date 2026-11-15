@@ -1,6 +1,7 @@
 package pe.com.edu.prisma.academic;
 
 import java.util.List;
+import java.util.Optional;
 import pe.com.edu.prisma.academic.dto.ChangeStageStatusRequest;
 import pe.com.edu.prisma.academic.dto.StageDto;
 import pe.com.edu.prisma.academic.dto.UpsertStageRequest;
@@ -25,4 +26,7 @@ public interface StageService {
 
     /** Soft-deletes a stage; only while it has no enrollments and no exams. */
     void delete(Long cycleId, Long id);
+
+    /** The stage in force of the cycle (see the implementation), if any stage has started. */
+    Optional<Stage> findCurrent(Long cycleId);
 }

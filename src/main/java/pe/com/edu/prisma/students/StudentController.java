@@ -17,14 +17,19 @@ import org.springframework.web.bind.annotation.RestController;
 import pe.com.edu.prisma.common.logging.LogMask;
 import pe.com.edu.prisma.common.logging.Sensitive;
 import pe.com.edu.prisma.students.dto.StudentDto;
+import pe.com.edu.prisma.students.dto.StudentFilter;
 import pe.com.edu.prisma.students.dto.UpsertStudentRequest;
 
 /**
  * Students (REQ-STUDENTS-01, -04): every role reads and searches them,
  * inactive ones included on request (a tutor reviews how a student did
  * before leaving; a coordinator needs to find students to work with exams);
- * only ADMIN and TUTOR register and edit; only ADMIN retires and reactivates. A tutor seeing "only my students" is a screen
- * default, not an access rule: other flows need any tutor to find any student.
+ * ADMIN and TUTOR register; only ADMIN retires and reactivates.
+ * The list carries each student's current stage and tutor. Only ADMIN
+ * filters it by tutor; a TUTOR only lists the students assigned to them
+ * today (the service decides), but can still open any student by id: other
+ * flows (imports, manual results, logbook) need to find any student.
+ * Editing a student's data: ADMIN or the student's current tutor.
  */
 @RestController
 @RequestMapping("/api/v1/students")
@@ -39,8 +44,10 @@ public class StudentController {
     // what is typed in the search box is a name or a DNI: never logged
     @GetMapping
     public List<StudentDto> findAll(@Sensitive(LogMask.HIDDEN) @RequestParam(required = false) String search,
-            @RequestParam(defaultValue = "false") boolean includeInactive) {
-        return studentService.findAll(search, includeInactive);
+            @RequestParam(defaultValue = "false") boolean includeInactive,
+            @RequestParam(required = false) Long tutorId,
+            @RequestParam(defaultValue = "false") boolean withoutTutor) {
+        return studentService.findAll(new StudentFilter(search, includeInactive, tutorId, withoutTutor));
     }
 
     @GetMapping("/{id}")

@@ -12,4 +12,7 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
 
     // withdrawn enrollments count too: there is one row per student and stage
     boolean existsByStudentIdAndStageId(Long studentId, Long stageId);
+
+    // who is enrolled in a stage today (the current enrollments, see CurrentEnrollments)
+    List<Enrollment> findByStageIdAndActiveTrue(Long stageId);
 }

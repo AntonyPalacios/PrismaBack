@@ -1,6 +1,7 @@
 package pe.com.edu.prisma.academic;
 
 import java.time.LocalDate;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -14,6 +15,9 @@ public interface CycleRepository extends JpaRepository<Cycle, Long> {
 
     // only one cycle can be ACTIVE at a time
     boolean existsByStatus(CycleStatus status);
+
+    // the ACTIVE cycle (there is at most one)
+    Optional<Cycle> findFirstByStatus(CycleStatus status);
 
     /**
      * Is there another cycle sharing at least one day with [start, end]?
