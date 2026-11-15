@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pe.com.edu.prisma.academic.CycleStatus;
@@ -17,6 +18,7 @@ import pe.com.edu.prisma.catalog.Career;
 import pe.com.edu.prisma.catalog.CareerRepository;
 import pe.com.edu.prisma.common.exception.BusinessRuleException;
 import pe.com.edu.prisma.common.exception.ResourceNotFoundException;
+import pe.com.edu.prisma.security.CurrentUser;
 import pe.com.edu.prisma.students.Enrollment;
 import pe.com.edu.prisma.students.EnrollmentRepository;
 import pe.com.edu.prisma.students.EnrollmentService;
@@ -28,6 +30,8 @@ import pe.com.edu.prisma.students.dto.UpdateEnrollmentRequest;
 import pe.com.edu.prisma.students.mapper.EnrollmentMapper;
 import pe.com.edu.prisma.tutoring.TutorAssignment;
 import pe.com.edu.prisma.tutoring.TutorAssignmentRepository;
+import pe.com.edu.prisma.tutoring.TutorAssignmentService;
+import pe.com.edu.prisma.users.Role;
 import pe.com.edu.prisma.users.User;
 
 @Service
@@ -43,6 +47,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     static final String ALREADY_ENROLLED = "El alumno ya tiene una matrícula en esa etapa.";
     static final String INACTIVE_CAREER = "La carrera elegida está inactiva: elige otra.";
     static final String WITHDRAWN = "Esta matrícula está retirada: ya no se puede modificar.";
+    static final String ONLY_ADMIN_ASSIGNS = "Solo el administrador asigna tutores.";
     static final String CLOSED_CYCLE_ENROLLMENT = "Esta matrícula es de un ciclo cerrado: ya no se puede modificar.";
 
     private static final Logger log = LoggerFactory.getLogger(EnrollmentServiceImpl.class);
@@ -58,17 +63,22 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     private final CareerRepository careerRepository;
     private final EnrollmentMapper enrollmentMapper;
     private final TutorAssignmentRepository tutorAssignmentRepository;
+    private final TutorAssignmentService tutorAssignmentService;
+    private final CurrentUser currentUser;
     private final Clock clock;
 
     public EnrollmentServiceImpl(EnrollmentRepository enrollmentRepository, StudentRepository studentRepository,
             StageRepository stageRepository, CareerRepository careerRepository, EnrollmentMapper enrollmentMapper,
-            TutorAssignmentRepository tutorAssignmentRepository, Clock clock) {
+            TutorAssignmentRepository tutorAssignmentRepository, TutorAssignmentService tutorAssignmentService,
+            CurrentUser currentUser, Clock clock) {
         this.enrollmentRepository = enrollmentRepository;
         this.studentRepository = studentRepository;
         this.stageRepository = stageRepository;
         this.careerRepository = careerRepository;
         this.enrollmentMapper = enrollmentMapper;
         this.tutorAssignmentRepository = tutorAssignmentRepository;
+        this.tutorAssignmentService = tutorAssignmentService;
+        this.currentUser = currentUser;
         this.clock = clock;
     }
 
@@ -123,6 +133,10 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     @Override
     @Transactional
     public EnrollmentDto update(Long id, UpdateEnrollmentRequest request) {
+        // only an admin assigns tutors; a tutor still changes the career
+        if (request.tutorUserId() != null && !currentUser.hasRole(Role.ADMIN)) {
+            throw new AccessDeniedException(ONLY_ADMIN_ASSIGNS);
+        }
         Enrollment enrollment = getEditable(id);
         Career career = findCareer(request.careerId());
         // a career deactivated after it was chosen may stay; it just can't be picked anew
@@ -133,6 +147,10 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         }
         enrollment.setCareer(career);
         log.info("Enrollment career changed: enrollmentId={} careerId={}", id, request.careerId());
+        if (request.tutorUserId() != null) {
+            // same transaction: a rejected tutor undoes the career change too; the current tutor again is a no-op
+            tutorAssignmentService.assign(id, request.tutorUserId());
+        }
         return enrollmentMapper.toDto(enrollment, currentTutor(id));
     }
 
