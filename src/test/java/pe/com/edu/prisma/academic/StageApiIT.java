@@ -63,6 +63,7 @@ class StageApiIT {
     @AfterEach
     void emptyTables() {
         jdbc.update("DELETE FROM exam");
+        jdbc.update("DELETE FROM mock_exam");
         jdbc.update("DELETE FROM tutor_assignment");
         jdbc.update("DELETE FROM student_stage");
         jdbc.update("DELETE FROM student");
@@ -365,8 +366,7 @@ class StageApiIT {
         jdbc.update("INSERT INTO student (first_name, last_name_pat) VALUES ('Ana', 'Pérez')");
         Long student = jdbc.queryForObject("SELECT max(id) FROM student", Long.class);
         jdbc.update("INSERT INTO student_stage (student_id, stage_id) VALUES (?, ?)", student, enrolled);
-        jdbc.update("INSERT INTO exam (stage_id, exam_type_id, name, exam_date) VALUES (?, 1, 'Simulacro 1', '2026-05-02')",
-                examined);
+        jdbc.update("INSERT INTO mock_exam (stage_id, name, exam_date) VALUES (?, 'Simulacro 1', '2026-05-02')", examined);
 
         asAdmin(delete(stages(cycle) + "/" + enrolled)).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.detail").value(hasData));
