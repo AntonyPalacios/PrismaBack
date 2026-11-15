@@ -1,5 +1,9 @@
 package pe.com.edu.prisma.students.dto;
 
-/** Only the career changes; null clears it. Student and stage are fixed once enrolled. */
-public record UpdateEnrollmentRequest(Long careerId) {
+/**
+ * The enrollment's editable data, saved together: the career (null clears
+ * it) and, only for ADMIN, the tutor (null = leave the tutor as it is).
+ * Student and stage are fixed once enrolled.
+ */
+public record UpdateEnrollmentRequest(Long careerId, Long tutorUserId) {
 }

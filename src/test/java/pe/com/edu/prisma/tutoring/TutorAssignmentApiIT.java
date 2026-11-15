@@ -6,6 +6,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -214,6 +215,59 @@ class TutorAssignmentApiIT {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.detail").value("No encontramos la matrícula solicitada."));
         as("ADMIN", get("/api/v1/enrollments/999999/tutor-assignments")).andExpect(status().isNotFound());
+    }
+
+    // --- one "Guardar" for the enrollment: PUT /enrollments/{id} with career and tutor ---
+
+    private ResultActions save(String role, Long careerId, Long tutorUserId) throws Exception {
+        return as(role, put("/api/v1/enrollments/" + enrollment)
+                .content("{\"careerId\":" + careerId + ",\"tutorUserId\":" + tutorUserId + "}"));
+    }
+
+    private long letras() {
+        return jdbc.queryForObject("SELECT id FROM career WHERE name = 'Letras'", Long.class);
+    }
+
+    @Test
+    void savingTheEnrollmentStoresCareerAndTutorTogether() throws Exception {
+        long letras = letras();
+
+        save("ADMIN", letras, rios)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.careerName").value("Letras"))
+                .andExpect(jsonPath("$.tutorId").value(rios))
+                .andExpect(jsonPath("$.tutorName").value("Ríos Paredes, María"));
+        // a different tutor reassigns; the same one again changes nothing
+        save("ADMIN", letras, vargas).andExpect(jsonPath("$.tutorName").value("Vargas, Julia"));
+        save("ADMIN", letras, vargas).andExpect(status().isOk());
+        assertThat(JsonPath.<List<String>>read(history(), "$[*].tutorName")).containsExactly("Vargas, Julia", "Ríos Paredes, María");
+
+        // without tutorUserId only the career changes and the tutor stays
+        save("ADMIN", null, null)
+                .andExpect(jsonPath("$.careerId").doesNotExist())
+                .andExpect(jsonPath("$.tutorName").value("Vargas, Julia"));
+    }
+
+    @Test
+    void aRejectedTutorUndoesTheCareerChangeToo() throws Exception {
+        long coordinator = appUser("jorge.arce@prueba.pe", "Jorge", "Arce", null, true, "COORDINADOR");
+
+        save("ADMIN", letras(), coordinator)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("El usuario elegido no es un tutor activo."));
+
+        assertThat(jdbc.queryForObject("SELECT career_id FROM student_stage WHERE id = ?", Long.class, enrollment)).isNull();
+        assertThat(JsonPath.<List<Object>>read(history(), "$")).isEmpty();
+    }
+
+    @Test
+    void aTutorChangesTheCareerButNotTheTutor() throws Exception {
+        save("TUTOR", letras(), vargas).andExpect(status().isForbidden());
+        assertThat(jdbc.queryForObject("SELECT career_id FROM student_stage WHERE id = ?", Long.class, enrollment)).isNull();
+
+        save("TUTOR", letras(), null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.careerName").value("Letras"));
     }
 
     private String studentId() {
