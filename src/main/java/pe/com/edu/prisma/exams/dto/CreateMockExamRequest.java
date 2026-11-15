@@ -7,8 +7,8 @@ import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 import java.util.List;
 
-/** A mock exam: one exam per type, same name, date and stage. Nothing here is personal data. */
-public record CreateExamsRequest(
+/** A mock exam and its exam types: one exam per type. Nothing here is personal data. */
+public record CreateMockExamRequest(
         @NotNull(message = "Elige la etapa del examen.")
         Long stageId,
 
