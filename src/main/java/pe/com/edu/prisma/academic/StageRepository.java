@@ -61,6 +61,7 @@ public interface StageRepository extends JpaRepository<Stage, Long> {
     @Query(value = "select count(*) from student_stage where stage_id = :stageId", nativeQuery = true)
     long countEnrollments(@Param("stageId") Long stageId);
 
-    @Query(value = "select count(*) from exam where stage_id = :stageId", nativeQuery = true)
+    // deleted exams no longer tie the stage
+    @Query(value = "select count(*) from exam where stage_id = :stageId and not deleted", nativeQuery = true)
     long countExams(@Param("stageId") Long stageId);
 }
