@@ -13,7 +13,11 @@ public interface EnrollmentService {
 
     EnrollmentDto create(CreateEnrollmentRequest request);
 
-    /** Sets or clears the career; only while the enrollment is active and its cycle is not closed. */
+    /**
+     * Sets or clears the career and, when {@code tutorUserId} is given (ADMIN
+     * only), reassigns the tutor — all or nothing. Only while the enrollment
+     * is active and its cycle is not closed.
+     */
     EnrollmentDto update(Long id, UpdateEnrollmentRequest request);
 
     /** The student leaves the stage (soft: {@code active=false}); same conditions as {@link #update}. */
