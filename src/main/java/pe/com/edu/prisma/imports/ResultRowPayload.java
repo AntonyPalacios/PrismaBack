@@ -8,7 +8,10 @@ import java.util.List;
  * review decided. {@code fullName} is the single "APELLIDOS Y NOMBRES" cell.
  * {@code enrolls}: the student is not enrolled in the exam's stage and will
  * be when the batch is confirmed. {@code newStudent}: the names a person
- * split by hand to register the row as a new student. {@code notice}
+ * split by hand to register the row as a new student. {@code tutorText} is
+ * the file's TUTOR cell and {@code tutorId} the active tutor it matched when
+ * uploading (null = none or several): the tutor given on confirm to whoever
+ * has none. {@code notice}
  * explains why the row needs a person. Everything here is personal data or
  * scores: it never goes to the logs.
  */
@@ -19,6 +22,8 @@ public record ResultRowPayload(
         List<CourseCount> courses,
         List<AreaScore> areas,
         BigDecimal totalScore,
+        String tutorText,
+        Long tutorId,
         boolean enrolls,
         NewStudent newStudent,
         String notice
@@ -36,7 +41,8 @@ public record ResultRowPayload(
     }
 
     public ResultRowPayload withReview(boolean enrolls, NewStudent newStudent, String notice) {
-        return new ResultRowPayload(fullName, dni, attended, courses, areas, totalScore, enrolls, newStudent, notice);
+        return new ResultRowPayload(fullName, dni, attended, courses, areas, totalScore, tutorText, tutorId, enrolls,
+                newStudent, notice);
     }
 
     public int totalCorrect() {

@@ -5,14 +5,11 @@ import java.io.InputStream;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.util.Arrays;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.commons.text.similarity.JaroWinklerSimilarity;
@@ -51,7 +48,6 @@ import pe.com.edu.prisma.students.StudentService;
 import pe.com.edu.prisma.students.dto.CreateEnrollmentRequest;
 import pe.com.edu.prisma.students.dto.UpsertStudentRequest;
 import pe.com.edu.prisma.tutoring.TutorAssignmentService;
-import pe.com.edu.prisma.users.Role;
 import pe.com.edu.prisma.users.User;
 import pe.com.edu.prisma.users.UserRepository;
 import tools.jackson.core.type.TypeReference;
@@ -316,7 +312,7 @@ public class StudentImportServiceImpl implements StudentImportService {
                 .collect(Collectors.toMap(Student::getDni, Function.identity(), (a, b) -> a));
         private final List<Career> careers = careerRepository.findAll().stream().filter(Career::isActive).toList();
         private final List<User> tutors = userRepository.findByActiveTrue().stream()
-                .filter(StudentImportServiceImpl::isTutor).toList();
+                .filter(ImportNames::isTutor).toList();
 
         Matcher(Stage stage) {
             this.stage = stage;
@@ -400,18 +396,8 @@ public class StudentImportServiceImpl implements StudentImportService {
             return found.size() == 1 ? found.get(0).getId() : null;
         }
 
-        /** "SILVIA", "Ana" or a full name: every word must be one of the tutor's names; exactly one tutor. */
         private Long matchTutor(String text) {
-            if (text == null) {
-                return null;
-            }
-            Set<String> words = Set.of(normalize(text).split(" "));
-            List<User> found = tutors.stream().filter(tutor -> {
-                Set<String> names = new HashSet<>(Arrays.asList(normalize(
-                        fullName(tutor.getFirstName(), tutor.getLastNamePat(), tutor.getLastNameMat())).split(" ")));
-                return names.containsAll(words);
-            }).toList();
-            return found.size() == 1 ? found.get(0).getId() : null;
+            return ImportNames.matchTutor(tutors, text);
         }
     }
 
@@ -458,11 +444,7 @@ public class StudentImportServiceImpl implements StudentImportService {
     }
 
     private boolean isActiveTutor(Long userId) {
-        return userRepository.findById(userId).filter(User::isActive).filter(StudentImportServiceImpl::isTutor).isPresent();
-    }
-
-    private static boolean isTutor(User user) {
-        return user.getRoles().stream().anyMatch(role -> Role.TUTOR.equals(role.getName()));
+        return userRepository.findById(userId).filter(User::isActive).filter(ImportNames::isTutor).isPresent();
     }
 
     private ImportBatch getOrThrow(Long id) {

@@ -45,7 +45,8 @@ import pe.com.edu.prisma.security.AuthenticatedUser;
  * agreements of 2026-11-16). The EVA sheets are built here with the layout
  * of the real files (title in B5, sub-headers in row 11, students from row
  * 12); every person is invented. Exam types come from the seed: 1 Ciencias
- * (4 Matemática courses), 2 Letras (5), 3 Arquitectura (3).
+ * (4 Matemática courses), 2 Letras (5), 3 Arquitectura (3); so does the
+ * tutor Silvia Valle Gómez, whom the TUTOR(A) column names as "SILVIA".
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
@@ -69,11 +70,13 @@ class ExamResultImportApiIT {
     private long letras;
     private long lucia;
     private long mateo;
+    private long silvia;
 
     @BeforeEach
     void seed() {
         emptyTables();
         me = jdbc.queryForObject("SELECT id FROM app_user WHERE email = 'apalaciosc0109@gmail.com'", Long.class);
+        silvia = jdbc.queryForObject("SELECT id FROM app_user WHERE email = 'silvia.valleg@prisma.edu.pe'", Long.class);
         long cycle = jdbc.queryForObject("INSERT INTO cycle (name, start_date, end_date, status) "
                 + "VALUES ('2026-I', '2026-01-01', '2026-12-31', 'ACTIVE') RETURNING id", Long.class);
         stage = jdbc.queryForObject("INSERT INTO stage (cycle_id, name, start_date, end_date) "
@@ -121,11 +124,16 @@ class ExamResultImportApiIT {
     // ---------------------------------------------------------------- EVA sheet
 
     /** A student row: DNI (text or number), name and the B/M/BL counts of each course, then the scores. */
-    private record Line(Object dni, Object name, int[] counts, Double reading, Double math, Double total) {
+    private record Line(Object dni, Object name, int[] counts, Double reading, Double math, Double total, String tutor) {
+
+        /** The same row with another text in its TUTOR(A) cell (null = empty). */
+        Line tutor(String text) {
+            return new Line(dni, name, counts, reading, math, total, text);
+        }
     }
 
     private static Line line(Object dni, String name, int[] counts, double reading, double math, double total) {
-        return new Line(dni, name, counts, reading, math, total);
+        return new Line(dni, name, counts, reading, math, total, "SILVIA"); // the seeded tutor, as the academy writes her
     }
 
     /** Lectura then {@code mathCourses} courses, all with the same counts. */
@@ -191,7 +199,7 @@ class ExamResultImportApiIT {
                 set(row, 12, line.reading());
                 set(row, mathArea + 2, line.math());
                 set(row, total + 2, line.total());
-                set(row, c + 1, "SILVIA"); // the TUTOR column, always ignored
+                set(row, c + 1, line.tutor());
             }
             workbook.write(out);
             return out.toByteArray();
@@ -285,6 +293,8 @@ class ExamResultImportApiIT {
                 .andExpect(jsonPath("$.rows[0].status").value("AUTO_MATCHED"))
                 .andExpect(jsonPath("$.rows[0].student.id").value(lucia))
                 .andExpect(jsonPath("$.rows[0].enrolls").value(false))
+                .andExpect(jsonPath("$.rows[0].tutorText").value("SILVIA"))
+                .andExpect(jsonPath("$.rows[0].tutorName").value("Valle Gómez, Silvia"))
                 .andExpect(jsonPath("$.rows[0].result.attended").value(true))
                 .andExpect(jsonPath("$.rows[0].result.totalCorrect").value(24))
                 .andExpect(jsonPath("$.rows[0].result.totalWrong").value(6))
@@ -335,7 +345,11 @@ class ExamResultImportApiIT {
         }
         assertThat(count("SELECT count(*) FROM student_stage WHERE student_id = ? AND career_id IS NULL", lucia))
                 .isEqualTo(1);
-        assertThat(count("SELECT count(*) FROM tutor_assignment")).isZero(); // the TUTOR column is ignored
+        // nobody had a tutor: the three get the one the TUTOR column names, also Lucía who was already enrolled
+        for (long student : List.of(lucia, mateo, ana)) {
+            assertThat(count("SELECT count(*) FROM tutor_assignment a JOIN student_stage s ON s.id = a.student_stage_id "
+                    + "WHERE s.student_id = ? AND a.tutor_id = ? AND a.valid_to IS NULL", student, silvia)).isEqualTo(1);
+        }
 
         long result = count("SELECT r.id FROM exam_result r JOIN student_stage s ON s.id = r.student_stage_id "
                 + "WHERE s.student_id = ?", lucia);
@@ -355,7 +369,7 @@ class ExamResultImportApiIT {
         as("COORDINADOR", get("/api/v1/mock-exams").param("stageId", String.valueOf(stage)))
                 .andExpect(jsonPath("$[0].exams[0].hasResults").value(true));
         assertThat(output.getAll()).contains("Exam results import confirmed: batchId=" + batch + " examId=" + letras
-                + " results=3 studentsCreated=1 enrolled=2");
+                + " results=3 studentsCreated=1 enrolled=2 tutorsAssigned=3");
 
         // loaded once: never again, neither uploading nor confirming another batch
         upload("ADMIN", letras, letrasFile()).andExpect(status().isConflict())
@@ -498,13 +512,42 @@ class ExamResultImportApiIT {
         jdbc.update("UPDATE career SET active = false WHERE name = 'Letras'");
         try {
             String json = uploaded("ADMIN", eva(LETRAS_TITLE, 5, line(null, "ROJAS MATEO", counts(5, 1, 0, 0), 1, 1, 1)));
-            assertThat(JsonPath.<String>read(json, "$.rows[0].notice")).contains("sin carrera ni tutor");
+            assertThat(JsonPath.<String>read(json, "$.rows[0].notice")).contains("sin carrera");
             confirm("ADMIN", id(json)).andExpect(status().isOk());
             assertThat(count("SELECT count(*) FROM student_stage WHERE student_id = ? AND career_id IS NULL", mateo))
                     .isEqualTo(1);
         } finally {
             jdbc.update("UPDATE career SET active = true WHERE name = 'Letras'");
         }
+    }
+
+    @Test
+    void theFileTutorNeverReplacesOneAndAnUnknownNameLeavesWithoutTutor() throws Exception {
+        // Lucía already has a tutor in the stage (any user will do here)
+        jdbc.update("INSERT INTO tutor_assignment (student_stage_id, tutor_id) "
+                + "SELECT id, ? FROM student_stage WHERE student_id = ?", me, lucia);
+        String json = uploaded("ADMIN", eva(LETRAS_TITLE, 5,
+                line("72345678", "QUISPE MAMANI LUCIA", counts(5, 1, 0, 0), 1, 1, 1),
+                line(null, "ROJAS MATEO", counts(5, 1, 0, 0), 1, 1, 1).tutor("XIMENA"),
+                line("70000002", "PAREDES LUNA DIEGO", counts(5, 1, 0, 0), 1, 1, 1).tutor(null)));
+        long batch = id(json);
+
+        as("ADMIN", get(BATCHES + "/" + batch))
+                // the tutor she has, not the file's
+                .andExpect(jsonPath("$.rows[0].tutorText").value("SILVIA"))
+                .andExpect(jsonPath("$.rows[0].tutorName").value("Palacios Coronado, Antony"))
+                // nobody is called Ximena: without a tutor, but not to review
+                .andExpect(jsonPath("$.rows[1].status").value("AUTO_MATCHED"))
+                .andExpect(jsonPath("$.rows[1].tutorText").value("XIMENA"))
+                .andExpect(jsonPath("$.rows[1].tutorName").doesNotExist());
+        resolve("ADMIN", batch, rowId(json, 14),
+                "{\"action\":\"NEW\",\"firstName\":\"Diego\",\"lastNamePat\":\"Paredes\",\"lastNameMat\":\"Luna\"}")
+                .andExpect(status().isOk());
+        confirm("ADMIN", batch).andExpect(status().isOk());
+
+        assertThat(count("SELECT count(*) FROM tutor_assignment")).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM tutor_assignment WHERE tutor_id = ? AND valid_to IS NULL", me)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM exam_result")).isEqualTo(3);
     }
 
     @Test

@@ -12,7 +12,10 @@ import pe.com.edu.prisma.imports.ImportRowStatus;
  * Students batches: {@code careerName} and {@code tutorName} are what the
  * Carrera and Tutor texts matched (null = left without one).
  *
- * Exam results batches: {@code fullName} is the file's name cell,
+ * Exam results batches: {@code tutorText} is the file's TUTOR cell and
+ * {@code tutorName} the tutor the student will have in the stage (the one
+ * they already have, else the one the file names; null = left without one).
+ * {@code fullName} is the file's name cell,
  * {@code result} the scores read, {@code enrolls} = the student will be
  * enrolled in the stage on confirm, and {@code newStudent} the names split
  * by hand when the row registers a new student.

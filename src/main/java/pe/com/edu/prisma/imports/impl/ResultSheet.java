@@ -32,8 +32,9 @@ import pe.com.edu.prisma.imports.ResultRowPayload.CourseCount;
  * BL) followed by the area (B, M, PUNTAJE), and at the end the total (B, M,
  * PUNTAJE). Columns are recognized by that position pattern, never by the
  * course titles (they come with typos, and Arquitectura's "Geometría y
- * Trigonometría" is only Geometría). Merit, header date, CONDICIÓN, the
- * school data and the TUTOR column are ignored.
+ * Trigonometría" is only Geometría). After the total come CONDICIÓN and
+ * TUTOR(A): the tutor's first name, read as text. Merit, header date,
+ * CONDICIÓN and the school data are ignored.
  *
  * Error messages only cite row numbers: never the data itself.
  */
@@ -49,13 +50,14 @@ public class ResultSheet {
     private static final int DNI_COLUMN = 2;     // C
     private static final int NAME_COLUMN = 3;    // D
     private static final int FIRST_SCORE_COLUMN = 7; // H
+    private static final int TUTOR_AFTER_TOTAL = 4;  // total B, M, PUNTAJE, CONDICIÓN, then TUTOR(A)
     private static final int MAX_ERRORS_SHOWN = 10;
     private static final Pattern VALID_DNI = Pattern.compile("[A-Z0-9]{8,12}");
     private static final Pattern HAS_LETTER = Pattern.compile("\\p{L}");
 
     /** A student row: as read, before matching. */
     public record ParsedRow(int rowNumber, String dni, String fullName, List<CourseCount> courses,
-            List<AreaScore> areas, BigDecimal totalScore, boolean attended) {
+            List<AreaScore> areas, BigDecimal totalScore, boolean attended, String tutorText) {
     }
 
     /** The student rows and how many other rows were skipped (no name: leftovers, footers). */
@@ -198,7 +200,7 @@ public class ResultSheet {
             }
         }
         return new ParsedRow(rowNumber, dni(row.getCell(DNI_COLUMN)), name, courses, areas,
-                score(row, layout.total() + 2), attended);
+                score(row, layout.total() + 2), attended, text(cell(row, layout.total() + TUTOR_AFTER_TOTAL)));
     }
 
     /** A DNI or a name repeated among the students rejects the file: it is fixed in the spreadsheet. */

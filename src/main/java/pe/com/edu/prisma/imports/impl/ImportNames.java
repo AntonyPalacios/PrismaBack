@@ -1,12 +1,18 @@
 package pe.com.edu.prisma.imports.impl;
 
 import java.text.Normalizer;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import pe.com.edu.prisma.imports.dto.StudentRefDto;
 import pe.com.edu.prisma.students.Student;
+import pe.com.edu.prisma.users.Role;
+import pe.com.edu.prisma.users.User;
 
 /** How the imports compare and show people's names. */
 final class ImportNames {
@@ -33,6 +39,28 @@ final class ImportNames {
     static String normalize(String text) {
         String noAccents = Normalizer.normalize(text, Normalizer.Form.NFD).replaceAll("\\p{M}", "");
         return noAccents.toLowerCase(Locale.ROOT).trim().replaceAll("\\s+", " ");
+    }
+
+    static boolean isTutor(User user) {
+        return user.getRoles().stream().anyMatch(role -> Role.TUTOR.equals(role.getName()));
+    }
+
+    /**
+     * The tutor a spreadsheet's Tutor cell names — "SILVIA", "Ana" or a full
+     * name: every word must be one of the tutor's names, and exactly one of
+     * {@code tutors} must fit. Null without a single match.
+     */
+    static Long matchTutor(List<User> tutors, String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        Set<String> words = Set.of(normalize(text).split(" "));
+        List<User> found = tutors.stream().filter(tutor -> {
+            Set<String> names = new HashSet<>(Arrays.asList(normalize(
+                    fullName(tutor.getFirstName(), tutor.getLastNamePat(), tutor.getLastNameMat())).split(" ")));
+            return names.containsAll(words);
+        }).toList();
+        return found.size() == 1 ? found.get(0).getId() : null;
     }
 
     static StudentRefDto ref(Student student) {
