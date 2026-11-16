@@ -4,7 +4,6 @@ import java.util.List;
 import org.springframework.web.multipart.MultipartFile;
 import pe.com.edu.prisma.imports.dto.ImportBatchDto;
 import pe.com.edu.prisma.imports.dto.ResolveRowRequest;
-import pe.com.edu.prisma.imports.dto.StudentRefDto;
 
 /** Importing students from the template, through a review batch (REQ-IMPORTS-02, REQ-IMPORTS-01). */
 public interface StudentImportService {
@@ -25,11 +24,4 @@ public interface StudentImportService {
     ImportBatchDto confirm(Long batchId);
 
     void discard(Long batchId);
-
-    /**
-     * Any registered student by name or DNI (at most 20), to resolve a row by
-     * hand. Searches every student: unlike the students list, a tutor is not
-     * limited to their own here, since the row may be anyone.
-     */
-    List<StudentRefDto> searchStudents(Long batchId, String query);
 }

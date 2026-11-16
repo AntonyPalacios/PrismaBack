@@ -36,8 +36,9 @@ public class ImportRow extends BaseEntity {
     @Column(name = "row_number", nullable = false, updatable = false)
     private int rowNumber;
 
-    // JSON of the parsed row (StudentRowPayload for a students batch)
-    @Column(name = "raw_payload", nullable = false, columnDefinition = "jsonb", updatable = false)
+    // JSON of the parsed row (StudentRowPayload / ResultRowPayload); a results
+    // row also keeps there what the review decided (enroll, new student's names)
+    @Column(name = "raw_payload", nullable = false, columnDefinition = "jsonb")
     @ColumnTransformer(write = "?::jsonb")
     private String rawPayload;
 

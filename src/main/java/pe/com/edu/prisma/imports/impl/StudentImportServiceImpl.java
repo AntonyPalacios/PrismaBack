@@ -2,22 +2,16 @@ package pe.com.edu.prisma.imports.impl;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.text.Normalizer;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.util.Arrays;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.commons.text.similarity.JaroWinklerSimilarity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,7 +38,6 @@ import pe.com.edu.prisma.imports.StudentRowPayload;
 import pe.com.edu.prisma.imports.dto.ImportBatchDto;
 import pe.com.edu.prisma.imports.dto.ImportRowDto;
 import pe.com.edu.prisma.imports.dto.ResolveRowRequest;
-import pe.com.edu.prisma.imports.dto.StudentRefDto;
 import pe.com.edu.prisma.security.CurrentUser;
 import pe.com.edu.prisma.students.Enrollment;
 import pe.com.edu.prisma.students.EnrollmentRepository;
@@ -55,11 +48,14 @@ import pe.com.edu.prisma.students.StudentService;
 import pe.com.edu.prisma.students.dto.CreateEnrollmentRequest;
 import pe.com.edu.prisma.students.dto.UpsertStudentRequest;
 import pe.com.edu.prisma.tutoring.TutorAssignmentService;
-import pe.com.edu.prisma.users.Role;
 import pe.com.edu.prisma.users.User;
 import pe.com.edu.prisma.users.UserRepository;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
+
+import static pe.com.edu.prisma.imports.impl.ImportNames.displayName;
+import static pe.com.edu.prisma.imports.impl.ImportNames.fullName;
+import static pe.com.edu.prisma.imports.impl.ImportNames.normalize;
 
 @Service
 @Transactional(readOnly = true)
@@ -81,7 +77,6 @@ public class StudentImportServiceImpl implements StudentImportService {
     // how alike two full names must be to suggest "this may be the same person"
     private static final double SIMILAR_NAME = 0.92;
     private static final int MAX_CANDIDATES = 5;
-    private static final int MAX_SEARCH_RESULTS = 20;
 
     private static final Logger log = LoggerFactory.getLogger(StudentImportServiceImpl.class);
 
@@ -304,26 +299,6 @@ public class StudentImportServiceImpl implements StudentImportService {
         log.info("Student import discarded: batchId={}", batchId);
     }
 
-    @Override
-    public List<StudentRefDto> searchStudents(Long batchId, String query) {
-        getOrThrow(batchId);
-        String wanted = normalize(query);
-        if (wanted.length() < 2) {
-            return List.of();
-        }
-        List<String> words = List.of(wanted.split(" "));
-        return studentRepository.findAll().stream()
-                .filter(student -> {
-                    String haystack = normalize(fullName(student.getLastNamePat(), student.getLastNameMat(),
-                            student.getFirstName(), student.getDni()));
-                    return words.stream().allMatch(haystack::contains);
-                })
-                .map(this::ref)
-                .sorted(Comparator.comparing(StudentRefDto::fullName, String.CASE_INSENSITIVE_ORDER))
-                .limit(MAX_SEARCH_RESULTS)
-                .toList();
-    }
-
     /**
      * Decides what each row is when the file is uploaded. It loads what the
      * matching needs once per file: registered students, active careers and
@@ -337,7 +312,7 @@ public class StudentImportServiceImpl implements StudentImportService {
                 .collect(Collectors.toMap(Student::getDni, Function.identity(), (a, b) -> a));
         private final List<Career> careers = careerRepository.findAll().stream().filter(Career::isActive).toList();
         private final List<User> tutors = userRepository.findByActiveTrue().stream()
-                .filter(StudentImportServiceImpl::isTutor).toList();
+                .filter(ImportNames::isTutor).toList();
 
         Matcher(Stage stage) {
             this.stage = stage;
@@ -421,18 +396,8 @@ public class StudentImportServiceImpl implements StudentImportService {
             return found.size() == 1 ? found.get(0).getId() : null;
         }
 
-        /** "SILVIA", "Ana" or a full name: every word must be one of the tutor's names; exactly one tutor. */
         private Long matchTutor(String text) {
-            if (text == null) {
-                return null;
-            }
-            Set<String> words = Set.of(normalize(text).split(" "));
-            List<User> found = tutors.stream().filter(tutor -> {
-                Set<String> names = new HashSet<>(Arrays.asList(normalize(
-                        fullName(tutor.getFirstName(), tutor.getLastNamePat(), tutor.getLastNameMat())).split(" ")));
-                return names.containsAll(words);
-            }).toList();
-            return found.size() == 1 ? found.get(0).getId() : null;
+            return ImportNames.matchTutor(tutors, text);
         }
     }
 
@@ -444,9 +409,9 @@ public class StudentImportServiceImpl implements StudentImportService {
         Stage stage = batch.getStage();
         String stageLabel = stage == null ? null : stage.getCycle().getName() + " · " + stage.getName();
         return new ImportBatchDto(batch.getId(), batch.getType(), batch.getStatus(), batch.getFileName(),
-                stage == null ? null : stage.getId(), stageLabel, batch.getUploadedAt(), rows.size(),
+                stage == null ? null : stage.getId(), stageLabel, null, null, batch.getUploadedAt(), rows.size(),
                 count(counts, ImportRowStatus.NEW_STUDENT), matched, count(counts, ImportRowStatus.UNRESOLVED),
-                count(counts, ImportRowStatus.IGNORED), withRows ? rowsDto(rows) : List.of());
+                count(counts, ImportRowStatus.IGNORED), 0, withRows ? rowsDto(rows) : List.of());
     }
 
     private List<ImportRowDto> rowsDto(List<ImportRow> rows) {
@@ -463,15 +428,10 @@ public class StudentImportServiceImpl implements StudentImportService {
                     displayName(p.lastNamePat(), p.lastNameMat(), p.firstName()), p.dni(), p.email(), p.phone(),
                     p.birthDate(), p.careerText(), p.careerId() == null ? null : careerNames.get(p.careerId()),
                     p.tutorText(), tutor == null ? null : displayName(tutor.getLastNamePat(), tutor.getLastNameMat(), tutor.getFirstName()),
-                    p.notice(), ref(row.getMatchedStudent()),
-                    candidateIds(row).stream().map(candidates::get).filter(Objects::nonNull).map(this::ref).toList());
+                    p.notice(), ImportNames.ref(row.getMatchedStudent()),
+                    candidateIds(row).stream().map(candidates::get).filter(Objects::nonNull).map(ImportNames::ref).toList(),
+                    false, null, null);
         }).toList();
-    }
-
-    private StudentRefDto ref(Student student) {
-        return student == null ? null : new StudentRefDto(student.getId(),
-                displayName(student.getLastNamePat(), student.getLastNameMat(), student.getFirstName()),
-                student.getDni(), student.isActive());
     }
 
     private static UpsertStudentRequest toRequest(StudentRowPayload p) {
@@ -484,11 +444,7 @@ public class StudentImportServiceImpl implements StudentImportService {
     }
 
     private boolean isActiveTutor(Long userId) {
-        return userRepository.findById(userId).filter(User::isActive).filter(StudentImportServiceImpl::isTutor).isPresent();
-    }
-
-    private static boolean isTutor(User user) {
-        return user.getRoles().stream().anyMatch(role -> Role.TUTOR.equals(role.getName()));
+        return userRepository.findById(userId).filter(User::isActive).filter(ImportNames::isTutor).isPresent();
     }
 
     private ImportBatch getOrThrow(Long id) {
@@ -522,18 +478,4 @@ public class StudentImportServiceImpl implements StudentImportService {
         return counts.getOrDefault(status, 0L).intValue();
     }
 
-    /** "Apellidos, Nombres", the agreed way to show a person. */
-    private static String displayName(String lastNamePat, String lastNameMat, String firstName) {
-        return fullName(lastNamePat, lastNameMat) + ", " + firstName;
-    }
-
-    private static String fullName(String... parts) {
-        return Stream.of(parts).filter(Objects::nonNull).filter(p -> !p.isBlank()).collect(Collectors.joining(" "));
-    }
-
-    /** Lower case, no accents, single spaces: "  Álvarez   PÉREZ " → "alvarez perez". */
-    private static String normalize(String text) {
-        String noAccents = Normalizer.normalize(text, Normalizer.Form.NFD).replaceAll("\\p{M}", "");
-        return noAccents.toLowerCase(Locale.ROOT).trim().replaceAll("\\s+", " ");
-    }
 }

@@ -18,11 +18,13 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import pe.com.edu.prisma.academic.Stage;
 import pe.com.edu.prisma.common.BaseEntity;
+import pe.com.edu.prisma.exams.Exam;
 
 /**
  * One uploaded spreadsheet waiting for a person (REQ-IMPORTS-01): nothing in
  * it becomes real data until the batch is confirmed, all or nothing. A
- * students batch may carry the stage its students will be enrolled in.
+ * students batch may carry the stage its students will be enrolled in; an
+ * exam results batch, its exam and that exam's stage.
  */
 @Getter
 @Setter
@@ -39,6 +41,15 @@ public class ImportBatch extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "stage_id", updatable = false)
     private Stage stage;
+
+    // exam results batches: the exam the results are for
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "exam_id", updatable = false)
+    private Exam exam;
+
+    // exam results batches: rows of the file that were not students
+    @Column(name = "skipped_rows", nullable = false, updatable = false)
+    private int skippedRows;
 
     @Column(name = "file_name", nullable = false, updatable = false)
     private String fileName;
