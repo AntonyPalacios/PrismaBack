@@ -71,14 +71,23 @@ class DashboardApiIT {
         long anaNow = enroll(ana, stage);
         jdbc.update("INSERT INTO tutor_assignment (student_stage_id, tutor_id) VALUES (?, ?)", luciaNow, silvia);
 
-        result(oldExam, luciaOld, "500.00", true, "480.5", "520.5");
+        long old = result(oldExam, luciaOld, "500.00", true, "480.5", "520.5");
+        course(old, 1, 15, 10, 3);
+        course(old, 2, 4, 3, 1);
         // Regular 1: Diego 700, Lucía and Mateo tied at 650, Ana did not attend
         result(regular1, diegoNow, "700.00", true, "700", "700");
-        result(regular1, luciaNow, "650.00", true, "640.5", "660");
+        long first = result(regular1, luciaNow, "650.00", true, "640.5", "660");
+        course(first, 1, 20, 6, 2);
+        course(first, 2, 5, 2, 1);
+        course(first, 3, 10, 6, 2);
+        course(first, 6, 3, 3, 1); // Estadística: only evaluated in Regular 1
         result(regular1, mateoNow, "650.00", true, "650", "650");
         result(regular1, anaNow, "80.00", false, "0", "0");
         // Regular 2: Lucía 722.76 first, Diego 600; Mateo did not attend
-        result(regular2, luciaNow, "722.76", true, "787.5", "819.4");
+        long second = result(regular2, luciaNow, "722.76", true, "787.5", "819.4");
+        course(second, 1, 26, 2, 0);
+        course(second, 2, 7, 1, 0);
+        course(second, 3, 17, 1, 0);
         result(regular2, diegoNow, "600.00", true, "600", "600");
         result(regular2, mateoNow, "80.00", false, "0", "0");
     }
@@ -123,11 +132,25 @@ class DashboardApiIT {
                 Long.class, studentId, stageId);
     }
 
-    private void result(long examId, long enrollmentId, String total, boolean attended, String reading, String math) {
+    private long result(long examId, long enrollmentId, String total, boolean attended, String reading, String math) {
         long result = jdbc.queryForObject("INSERT INTO exam_result (exam_id, student_stage_id, total_score, attended) "
                 + "VALUES (?, ?, ?::numeric, ?) RETURNING id", Long.class, examId, enrollmentId, total, attended);
         jdbc.update("INSERT INTO exam_area_result (exam_result_id, area_id, score) VALUES (?, 1, ?::numeric), (?, 2, ?::numeric)",
                 result, reading, result, math);
+        return result;
+    }
+
+    /** Correct, wrong and blank answers of one course (1 Lectura; 2 to 6 are Matemática's). */
+    private void course(long resultId, long courseId, int correct, int wrong, int blank) {
+        jdbc.update("INSERT INTO exam_course_result (exam_result_id, course_id, correct, wrong, blank) "
+                + "VALUES (?, ?, ?, ?, ?)", resultId, courseId, correct, wrong, blank);
+    }
+
+    private ResultActions dashboard(String name, String role, long userId, long studentId, boolean all) throws Exception {
+        AuthenticatedUser principal = () -> userId;
+        var auth = new UsernamePasswordAuthenticationToken(principal, null, List.of(new SimpleGrantedAuthority("ROLE_" + role)));
+        return mockMvc.perform(get("/api/v1/dashboards/students/" + studentId + "/" + name)
+                .param("includeAllCycles", String.valueOf(all)).with(authentication(auth)).with(csrf()));
     }
 
     private ResultActions evolution(String role, long userId, long studentId, boolean all) throws Exception {
@@ -195,5 +218,67 @@ class DashboardApiIT {
         evolution("TUTOR", admin, lucia, false).andExpect(status().isForbidden());
         evolution("COORDINADOR", admin, lucia, false).andExpect(status().isForbidden());
         evolution("ADMIN", admin, 999_999, false).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void eachCourseWithTheExamsThatEvaluatedIt() throws Exception {
+        dashboard("course-effectiveness", "ADMIN", admin, lucia, false).andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(4))
+                .andExpect(jsonPath("$[0].courseId").value(1))
+                .andExpect(jsonPath("$[0].courseName").value("Lectura"))
+                .andExpect(jsonPath("$[0].points.length()").value(2))
+                .andExpect(jsonPath("$[0].points[0].examId").value(regular1))
+                .andExpect(jsonPath("$[0].points[0].examName").value("Regular 1"))
+                .andExpect(jsonPath("$[0].points[0].examDate").value("2026-03-14"))
+                .andExpect(jsonPath("$[0].points[0].cycleName").value("2026-I"))
+                .andExpect(jsonPath("$[0].points[0].correct").value(20))
+                .andExpect(jsonPath("$[0].points[0].wrong").value(6))
+                .andExpect(jsonPath("$[0].points[0].blank").value(2))
+                .andExpect(jsonPath("$[0].points[1].correct").value(26))
+                // Estadística was not evaluated in Regular 2: one point, never a zero
+                .andExpect(jsonPath("$[3].courseId").value(6))
+                .andExpect(jsonPath("$[3].points.length()").value(1))
+                .andExpect(jsonPath("$[3].points[0].examId").value(regular1));
+        dashboard("course-effectiveness", "ADMIN", admin, lucia, true)
+                .andExpect(jsonPath("$[0].points.length()").value(3))
+                .andExpect(jsonPath("$[0].points[0].examId").value(oldExam))
+                .andExpect(jsonPath("$[0].points[0].cycleName").value("2025-II"));
+    }
+
+    @Test
+    void correctAndWrongAnswersPerAreaAndInTotal() throws Exception {
+        dashboard("area-distribution", "ADMIN", admin, lucia, false).andExpect(status().isOk())
+                .andExpect(jsonPath("$.areas.length()").value(2))
+                .andExpect(jsonPath("$.areas[0].areaName").value("Lectura"))
+                .andExpect(jsonPath("$.areas[0].points[0].examId").value(regular1))
+                .andExpect(jsonPath("$.areas[0].points[0].correct").value(20))
+                .andExpect(jsonPath("$.areas[0].points[0].wrong").value(6))
+                // Matemática: the sum of its courses in each exam
+                .andExpect(jsonPath("$.areas[1].points[0].correct").value(18))
+                .andExpect(jsonPath("$.areas[1].points[0].wrong").value(11))
+                .andExpect(jsonPath("$.areas[1].points[1].correct").value(24))
+                .andExpect(jsonPath("$.areas[1].points[1].wrong").value(2))
+                .andExpect(jsonPath("$.totals.length()").value(2))
+                .andExpect(jsonPath("$.totals[0].correct").value(38))
+                .andExpect(jsonPath("$.totals[0].wrong").value(17))
+                .andExpect(jsonPath("$.totals[1].examName").value("Regular 2"))
+                .andExpect(jsonPath("$.totals[1].correct").value(50))
+                .andExpect(jsonPath("$.totals[1].wrong").value(4));
+        dashboard("area-distribution", "ADMIN", admin, lucia, true).andExpect(jsonPath("$.totals.length()").value(3));
+    }
+
+    @Test
+    void theNewChartsFollowTheSamePermissionsAndEmptyStates() throws Exception {
+        for (String name : List.of("course-effectiveness", "area-distribution")) {
+            dashboard(name, "TUTOR", silvia, lucia, false).andExpect(status().isOk());
+            dashboard(name, "TUTOR", silvia, mateo, false).andExpect(status().isForbidden());
+            dashboard(name, "COORDINADOR", admin, lucia, false).andExpect(status().isForbidden());
+            dashboard(name, "ADMIN", admin, 999_999, false).andExpect(status().isNotFound());
+        }
+        long nobody = student("Rosa", "Huamán");
+        dashboard("course-effectiveness", "ADMIN", admin, nobody, true).andExpect(jsonPath("$.length()").value(0));
+        dashboard("area-distribution", "ADMIN", admin, nobody, true)
+                .andExpect(jsonPath("$.areas.length()").value(0))
+                .andExpect(jsonPath("$.totals.length()").value(0));
     }
 }
