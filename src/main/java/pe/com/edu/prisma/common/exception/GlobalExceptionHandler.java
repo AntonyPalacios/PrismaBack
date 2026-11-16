@@ -9,6 +9,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -76,6 +78,27 @@ public class GlobalExceptionHandler {
             HttpServletRequest request) {
         log.info("400 on {}: missing parameter {}", describe(request), ex.getParameterName());
         return problem(HttpStatus.BAD_REQUEST, "Falta un dato obligatorio en la consulta.");
+    }
+
+    // e.g. an upload without its file
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ProblemDetail handleMissingPart(MissingServletRequestPartException ex, HttpServletRequest request) {
+        log.info("400 on {}: missing part {}", describe(request), ex.getRequestPartName());
+        return problem(HttpStatus.BAD_REQUEST, "Adjunta el archivo.");
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ProblemDetail handleTooLarge(MaxUploadSizeExceededException ex, HttpServletRequest request) {
+        log.info("400 on {}: upload too large", describe(request));
+        return problem(HttpStatus.BAD_REQUEST, "El archivo es demasiado grande (máximo 5 MB).");
+    }
+
+    // content that can't be used as sent (e.g. a spreadsheet with invalid rows);
+    // the message is user-facing and never carries personal data
+    @ExceptionHandler(InvalidRequestException.class)
+    public ProblemDetail handleInvalidRequest(InvalidRequestException ex, HttpServletRequest request) {
+        log.info("400 on {}: {}", describe(request), ex.getMessage());
+        return problem(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
     @ExceptionHandler(AccessDeniedException.class)
