@@ -20,17 +20,18 @@ import pe.com.edu.prisma.imports.dto.StudentRefDto;
 
 /**
  * The review queue of an import (REQ-IMPORTS-01): list batches, resolve
- * rows, confirm (all or nothing) or discard. For now only students batches,
- * so only ADMIN and TUTOR; exam results batches arrive with their import.
+ * rows, confirm (all or nothing) or discard. Exam results batches are for
+ * the three roles; students batches only for ADMIN and TUTOR (checked by
+ * the service, since it depends on the batch).
  */
 @RestController
 @RequestMapping("/api/v1/import-batches")
-@PreAuthorize("hasAnyRole('ADMIN', 'TUTOR')")
+@PreAuthorize("hasAnyRole('ADMIN', 'TUTOR', 'COORDINADOR')")
 public class ImportBatchController {
 
-    private final StudentImportService importService;
+    private final ImportBatchService importService;
 
-    public ImportBatchController(StudentImportService importService) {
+    public ImportBatchController(ImportBatchService importService) {
         this.importService = importService;
     }
 

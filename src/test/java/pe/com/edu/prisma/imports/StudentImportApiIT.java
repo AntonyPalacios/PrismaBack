@@ -456,7 +456,8 @@ class StudentImportApiIT {
     @Test
     void aCoordinatorDoesNotImportStudents() throws Exception {
         upload("COORDINADOR", xlsx(row("Valeria", "Díaz")), null).andExpect(status().isForbidden());
-        as("COORDINADOR", get(BATCHES)).andExpect(status().isForbidden());
+        // the review queue only shows them their exam results batches
+        as("COORDINADOR", get(BATCHES)).andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
         as("COORDINADOR", get(IMPORTS + "/template")).andExpect(status().isForbidden());
     }
 }
