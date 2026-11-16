@@ -296,7 +296,7 @@ class ExamResultImportApiIT {
                 .andExpect(jsonPath("$.rows[1].status").value("AUTO_MATCHED"))
                 .andExpect(jsonPath("$.rows[1].student.id").value(mateo))
                 .andExpect(jsonPath("$.rows[1].enrolls").value(true))
-                .andExpect(jsonPath("$.rows[1].notice").value(containsString("se matriculará")))
+                .andExpect(jsonPath("$.rows[1].notice").value(containsString("se matriculará al confirmar en Letras")))
                 // nobody registered: a person decides
                 .andExpect(jsonPath("$.rows[2].status").value("UNRESOLVED"))
                 .andExpect(jsonPath("$.rows[2].fullName").value("TORRES VEGA ANA SOFIA"))
@@ -327,10 +327,14 @@ class ExamResultImportApiIT {
         assertThat(count("SELECT count(*) FROM exam_result WHERE exam_id = ?", letras)).isEqualTo(3);
         long ana = count("SELECT id FROM student WHERE dni = '71112223' AND first_name = 'Ana Sofía' "
                 + "AND last_name_pat = 'Torres' AND last_name_mat = 'Vega'");
-        for (long student : List.of(lucia, mateo, ana)) {
-            assertThat(count("SELECT count(*) FROM student_stage WHERE student_id = ? AND stage_id = ? AND active "
-                    + "AND career_id IS NULL", student, stage)).isEqualTo(1);
+        // enrolled by the import: in the career named as the exam type (Lucía was already enrolled)
+        for (long student : List.of(mateo, ana)) {
+            assertThat(count("SELECT count(*) FROM student_stage s JOIN career c ON c.id = s.career_id "
+                    + "WHERE s.student_id = ? AND s.stage_id = ? AND s.active AND c.name = 'Letras'", student, stage))
+                    .isEqualTo(1);
         }
+        assertThat(count("SELECT count(*) FROM student_stage WHERE student_id = ? AND career_id IS NULL", lucia))
+                .isEqualTo(1);
         assertThat(count("SELECT count(*) FROM tutor_assignment")).isZero(); // the TUTOR column is ignored
 
         long result = count("SELECT r.id FROM exam_result r JOIN student_stage s ON s.id = r.student_stage_id "
@@ -487,6 +491,20 @@ class ExamResultImportApiIT {
 
         confirm("COORDINADOR", id(json)).andExpect(status().isOk());
         assertThat(count("SELECT count(*) FROM student_stage WHERE student_id = ?", mateo)).isEqualTo(1);
+    }
+
+    @Test
+    void withoutAnActiveCareerNamedAsTheTypeTheyAreEnrolledWithoutCareer() throws Exception {
+        jdbc.update("UPDATE career SET active = false WHERE name = 'Letras'");
+        try {
+            String json = uploaded("ADMIN", eva(LETRAS_TITLE, 5, line(null, "ROJAS MATEO", counts(5, 1, 0, 0), 1, 1, 1)));
+            assertThat(JsonPath.<String>read(json, "$.rows[0].notice")).contains("sin carrera ni tutor");
+            confirm("ADMIN", id(json)).andExpect(status().isOk());
+            assertThat(count("SELECT count(*) FROM student_stage WHERE student_id = ? AND career_id IS NULL", mateo))
+                    .isEqualTo(1);
+        } finally {
+            jdbc.update("UPDATE career SET active = true WHERE name = 'Letras'");
+        }
     }
 
     @Test

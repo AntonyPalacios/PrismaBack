@@ -28,6 +28,8 @@ import pe.com.edu.prisma.academic.Stage;
 import pe.com.edu.prisma.academic.StageService;
 import pe.com.edu.prisma.catalog.Area;
 import pe.com.edu.prisma.catalog.AreaRepository;
+import pe.com.edu.prisma.catalog.Career;
+import pe.com.edu.prisma.catalog.CareerRepository;
 import pe.com.edu.prisma.catalog.CourseRepository;
 import pe.com.edu.prisma.catalog.ExamType;
 import pe.com.edu.prisma.catalog.ExamTypeRepository;
@@ -69,7 +71,7 @@ import tools.jackson.databind.json.JsonMapper;
  * Importing an exam's results (REQ-EXAMS-02, agreements of 2026-11-16): the
  * academy's Excel becomes a review batch; on confirm, each row's student
  * (found, chosen or registered by hand) is enrolled in the exam's stage if
- * they were not, and their result is saved. The TUTOR column is ignored.
+ * they were not (in the career named as the exam type), and their result is saved. The TUTOR column is ignored.
  */
 @Service
 @Transactional(readOnly = true)
@@ -83,7 +85,8 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
     static final String DNI_EXISTS = "Ya existe un alumno con ese DNI: empareja la fila con él.";
     static final String WITHDRAWN = "Está retirado de esta etapa: no se le pueden cargar resultados. Ignora la fila.";
     static final String INACTIVE = "Está dado de baja y no está matriculado en la etapa: reactívalo antes de confirmar o ignora la fila.";
-    static final String WILL_ENROLL = "No está matriculado en la etapa: se matriculará al confirmar, sin carrera ni tutor.";
+    static final String WILL_ENROLL = "No está matriculado en la etapa: se matriculará al confirmar en %s, sin tutor.";
+    static final String WILL_ENROLL_NO_CAREER = "No está matriculado en la etapa: se matriculará al confirmar, sin carrera ni tutor.";
     static final String TAKEN_BY_ROW = "Ese alumno ya está en la fila %d: ignora una de las dos.";
     static final String SAME_STUDENT = "Las filas %d y %d son el mismo alumno: ignora una de las dos.";
 
@@ -101,6 +104,7 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
     private final ExamTypeRepository examTypeRepository;
     private final CourseRepository courseRepository;
     private final AreaRepository areaRepository;
+    private final CareerRepository careerRepository;
     private final CycleRepository cycleRepository;
     private final StageService stageService;
     private final StudentRepository studentRepository;
@@ -116,6 +120,7 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
     public ExamResultImportServiceImpl(ImportBatchRepository batchRepository, ImportRowRepository rowRepository,
             ResultSheet sheet, ExamRepository examRepository, ExamResultRepository resultRepository,
             ExamTypeRepository examTypeRepository, CourseRepository courseRepository, AreaRepository areaRepository,
+            CareerRepository careerRepository,
             CycleRepository cycleRepository, StageService stageService, StudentRepository studentRepository,
             EnrollmentRepository enrollmentRepository, StudentService studentService,
             EnrollmentService enrollmentService, CurrentUser currentUser, Validator validator, JsonMapper jsonMapper,
@@ -128,6 +133,7 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
         this.examTypeRepository = examTypeRepository;
         this.courseRepository = courseRepository;
         this.areaRepository = areaRepository;
+        this.careerRepository = careerRepository;
         this.cycleRepository = cycleRepository;
         this.stageService = stageService;
         this.studentRepository = studentRepository;
@@ -177,7 +183,7 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
         batch.setUploadedAt(OffsetDateTime.now(clock));
         batchRepository.save(batch);
 
-        Matcher matcher = new Matcher(stage);
+        Matcher matcher = new Matcher(stage, defaultCareer(type).orElse(null));
         for (ResultSheet.ParsedRow parsedRow : parsed.rows()) {
             batch.getRows().add(matcher.toRow(batch, parsedRow));
         }
@@ -215,7 +221,8 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
                 Student student = studentRepository.findById(request.studentId())
                         .orElseThrow(() -> new ResourceNotFoundException(StudentImportServiceImpl.STUDENT_NOT_FOUND));
                 rejectTaken(batch, row, student.getId());
-                Standing standing = standing(student, batch.getStage());
+                Career career = defaultCareer(batch.getExam().getExamType()).orElse(null);
+                Standing standing = standing(student, batch.getStage(), career);
                 if (standing.blocker() != null) {
                     throw new BusinessRuleException(standing.blocker());
                 }
@@ -267,6 +274,7 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
         rejectSameStudentTwice(rows);
 
         Stage stage = batch.getStage();
+        Long careerId = defaultCareer(exam.getExamType()).map(Career::getId).orElse(null);
         int created = 0;
         int enrolled = 0;
         for (ImportRow row : rows) {
@@ -289,7 +297,7 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
                 enrollment = existing.get();
             } else {
                 // the same rules as enrolling by hand: an inactive student or a closed cycle reject the batch
-                Long enrollmentId = enrollmentService.create(new CreateEnrollmentRequest(studentId, stage.getId(), null)).id();
+                Long enrollmentId = enrollmentService.create(new CreateEnrollmentRequest(studentId, stage.getId(), careerId)).id();
                 enrollment = enrollmentRepository.getReferenceById(enrollmentId);
                 enrolled++;
             }
@@ -343,12 +351,27 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
     private record Standing(boolean enrolls, String notice, String blocker) {
     }
 
-    private Standing standing(Student student, Stage stage) {
+    private Standing standing(Student student, Stage stage, Career career) {
         Optional<Enrollment> enrollment = enrollmentRepository.findByStudentIdAndStageId(student.getId(), stage.getId());
         if (enrollment.isPresent()) {
             return enrollment.get().isActive() ? new Standing(false, null, null) : new Standing(false, null, WITHDRAWN);
         }
-        return student.isActive() ? new Standing(true, WILL_ENROLL, null) : new Standing(false, null, INACTIVE);
+        String notice = career == null ? WILL_ENROLL_NO_CAREER : WILL_ENROLL.formatted(career.getName());
+        return student.isActive() ? new Standing(true, notice, null) : new Standing(false, null, INACTIVE);
+    }
+
+    /**
+     * The career whoever gets enrolled by the import takes: the active one of
+     * the exam's type named as the type (Ciencias, Letras, Arquitectura). A
+     * Derecho or Biomédica student is corrected later in their enrollment.
+     */
+    private Optional<Career> defaultCareer(ExamType type) {
+        String wanted = normalize(type.getName());
+        return careerRepository.findAll().stream()
+                .filter(Career::isActive)
+                .filter(career -> career.getExamType().getId().equals(type.getId()))
+                .filter(career -> normalize(career.getName()).equals(wanted))
+                .findFirst();
     }
 
     // a student can't take two rows of the same exam
@@ -385,14 +408,16 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
     private final class Matcher {
 
         private final Stage stage;
+        private final Career career;
         private final List<Student> students = studentRepository.findAll();
         private final Map<String, Student> byDni = students.stream().filter(s -> s.getDni() != null)
                 .collect(Collectors.toMap(Student::getDni, Function.identity(), (a, b) -> a));
         private final Map<Long, String> names = students.stream()
                 .collect(Collectors.toMap(Student::getId, ImportNames::comparableName));
 
-        Matcher(Stage stage) {
+        Matcher(Stage stage, Career career) {
             this.stage = stage;
+            this.career = career;
         }
 
         ImportRow toRow(ImportBatch batch, ResultSheet.ParsedRow parsed) {
@@ -411,7 +436,7 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
             boolean enrolls = false;
             String notice = null;
             if (same != null) {
-                Standing standing = standing(same, stage);
+                Standing standing = standing(same, stage, career);
                 row.setMatchedStudent(same);
                 row.setStatus(standing.blocker() == null ? ImportRowStatus.AUTO_MATCHED : ImportRowStatus.UNRESOLVED);
                 enrolls = standing.enrolls();
