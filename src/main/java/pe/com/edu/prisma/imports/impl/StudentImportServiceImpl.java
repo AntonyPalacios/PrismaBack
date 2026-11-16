@@ -46,6 +46,7 @@ import pe.com.edu.prisma.imports.dto.ImportRowDto;
 import pe.com.edu.prisma.imports.dto.ResolveRowRequest;
 import pe.com.edu.prisma.imports.dto.StudentRefDto;
 import pe.com.edu.prisma.security.CurrentUser;
+import pe.com.edu.prisma.students.Enrollment;
 import pe.com.edu.prisma.students.EnrollmentRepository;
 import pe.com.edu.prisma.students.EnrollmentService;
 import pe.com.edu.prisma.students.Student;
@@ -74,7 +75,7 @@ public class StudentImportServiceImpl implements StudentImportService {
     static final String CHOOSE_STUDENT = "Elige el alumno con el que se empareja la fila.";
     static final String DNI_EXISTS = "Ya existe un alumno con ese DNI: empareja la fila con él.";
     static final String INACTIVE_STUDENT = "Este alumno está dado de baja: reactívalo antes de matricularlo, o ignora la fila.";
-    static final String ALREADY_ENROLLED = "Ya está matriculado en esta etapa: no se volverá a matricular.";
+    static final String ALREADY_ENROLLED = "Ya está matriculado en esta etapa: se actualizan su carrera y su tutor si el archivo los trae.";
     static final String INACTIVE_NOTICE = "Está dado de baja: no se puede matricular. Reactívalo antes de confirmar o ignora la fila.";
 
     // how alike two full names must be to suggest "this may be the same person"
@@ -217,6 +218,7 @@ public class StudentImportServiceImpl implements StudentImportService {
         int created = 0;
         int enrolled = 0;
         int tutors = 0;
+        int updated = 0;
         for (ImportRow row : batch.getRows()) {
             if (row.getStatus() == ImportRowStatus.IGNORED) {
                 continue;
@@ -230,25 +232,68 @@ public class StudentImportServiceImpl implements StudentImportService {
                 created++;
             } else {
                 studentId = row.getMatchedStudent().getId();
+                updateContactData(row.getMatchedStudent(), payload);
+                updated++;
             }
-            if (stage == null || enrollmentRepository.existsByStudentIdAndStageId(studentId, stage.getId())) {
-                continue; // only registering, or already enrolled: never twice
+            if (stage == null) {
+                continue; // only registering
             }
-            // the same rules as enrolling by hand: an inactive student or a closed cycle reject the batch
             Long careerId = activeCareer(payload.careerId()) ? payload.careerId() : null;
-            Long enrollmentId = enrollmentService.create(new CreateEnrollmentRequest(studentId, stage.getId(), careerId)).id();
-            enrolled++;
-            if (payload.tutorId() != null && isActiveTutor(payload.tutorId())) {
-                tutorAssignmentService.assign(enrollmentId, payload.tutorId());
-                tutors++;
+            Long tutorId = payload.tutorId() != null && isActiveTutor(payload.tutorId()) ? payload.tutorId() : null;
+            Optional<Enrollment> existing = enrollmentRepository.findByStudentIdAndStageId(studentId, stage.getId());
+            Long enrollmentId;
+            if (existing.isPresent()) {
+                // already enrolled: never twice. A withdrawn enrollment is history and stays as it is;
+                // an active one takes the career the file found (an empty or unknown one changes nothing)
+                Enrollment enrollment = existing.get();
+                if (!enrollment.isActive()) {
+                    continue;
+                }
+                if (careerId != null) {
+                    enrollment.setCareer(careerRepository.getReferenceById(careerId));
+                }
+                enrollmentId = enrollment.getId();
+            } else {
+                // the same rules as enrolling by hand: an inactive student or a closed cycle reject the batch
+                enrollmentId = enrollmentService.create(new CreateEnrollmentRequest(studentId, stage.getId(), careerId)).id();
+                enrolled++;
+            }
+            if (tutorId != null && tutorAssignmentService.assign(enrollmentId, tutorId).created()) {
+                tutors++; // the same tutor again changes nothing; another one keeps the history
             }
         }
         batch.setStatus(ImportBatchStatus.CONFIRMED);
         batch.setConfirmedBy(currentUser.id());
         batch.setConfirmedAt(OffsetDateTime.now(clock));
-        log.info("Student import confirmed: batchId={} created={} enrolled={} tutorsAssigned={} rows={}",
-                batchId, created, enrolled, tutors, batch.getRows().size());
+        log.info("Student import confirmed: batchId={} created={} updated={} enrolled={} tutorsAssigned={} rows={}",
+                batchId, created, updated, enrolled, tutors, batch.getRows().size());
         return toDto(batch, true);
+    }
+
+    /**
+     * A registered student takes the contact data the file brings: email,
+     * phone and birth date, and the DNI if they had none. An empty cell
+     * erases nothing, and names are never overwritten (a mistyped DNI would
+     * rename someone else): those are fixed in the student's file. Whoever
+     * confirms the batch may do this, also a tutor who is not theirs. An
+     * inactive student is not edited until reactivated.
+     */
+    private void updateContactData(Student student, StudentRowPayload payload) {
+        if (!student.isActive()) {
+            return;
+        }
+        if (payload.email() != null) {
+            student.setEmail(payload.email());
+        }
+        if (payload.phone() != null) {
+            student.setPhone(payload.phone());
+        }
+        if (payload.birthDate() != null) {
+            student.setBirthDate(LocalDate.parse(payload.birthDate()));
+        }
+        if (student.getDni() == null && payload.dni() != null && !studentRepository.existsByDni(payload.dni())) {
+            student.setDni(payload.dni());
+        }
     }
 
     @Override
@@ -307,14 +352,25 @@ public class StudentImportServiceImpl implements StudentImportService {
             row.setRowNumber(parsed.rowNumber());
 
             String notice = null;
-            Student sameDni = s.dni() == null ? null : byDni.get(s.dni());
-            if (sameDni != null) {
-                // the DNI identifies them: never a second student with it
-                row.setMatchedStudent(sameDni);
+            // sure it is the same person: the DNI matches or, while the row
+            // or the student has no DNI to contradict it, the full name is
+            // exactly that of one single student
+            Student same = s.dni() == null ? null : byDni.get(s.dni());
+            if (same == null) {
+                Student named = onlyOneNamed(s);
+                if (named != null && (s.dni() == null || named.getDni() == null)) {
+                    same = named;
+                }
+            }
+            if (same != null) {
+                row.setMatchedStudent(same);
                 row.setStatus(ImportRowStatus.AUTO_MATCHED);
-                notice = enrollmentNotice(sameDni);
-                if (notice != null) {
+                if (stage != null && !same.isActive()) {
+                    // can't be enrolled: a person reactivates them or ignores the row
+                    notice = INACTIVE_NOTICE;
                     row.setStatus(ImportRowStatus.UNRESOLVED);
+                } else if (stage != null && enrollmentRepository.existsByStudentIdAndStageId(same.getId(), stage.getId())) {
+                    notice = ALREADY_ENROLLED;
                 }
             } else {
                 List<Long> candidates = candidates(s);
@@ -327,27 +383,28 @@ public class StudentImportServiceImpl implements StudentImportService {
             return row;
         }
 
-        /** With a stage, a student who can't (or needn't) be enrolled goes to a person. */
-        private String enrollmentNotice(Student student) {
-            if (stage == null) {
-                return null;
-            }
-            if (!student.isActive()) {
-                return INACTIVE_NOTICE;
-            }
-            if (enrollmentRepository.existsByStudentIdAndStageId(student.getId(), stage.getId())) {
-                return ALREADY_ENROLLED;
-            }
-            return null;
+        private String nameOf(Student student) {
+            return normalize(fullName(student.getLastNamePat(), student.getLastNameMat(), student.getFirstName()));
         }
 
-        /** Registered students whose full name is equal or very similar — never one with another DNI. */
+        /** The one student with exactly this full name (ignoring case and accents); null if none or several. */
+        private Student onlyOneNamed(UpsertStudentRequest s) {
+            String name = normalize(fullName(s.lastNamePat(), s.lastNameMat(), s.firstName()));
+            List<Student> found = students.stream().filter(student -> nameOf(student).equals(name)).toList();
+            return found.size() == 1 ? found.get(0) : null;
+        }
+
+        /**
+         * Registered students a person must compare the row with: a very
+         * similar name, or (when both have a DNI and they differ) the very
+         * same name, which smells like a mistyped DNI rather than a new
+         * student. A similar name with another DNI is someone else.
+         */
         private List<Long> candidates(UpsertStudentRequest s) {
             String name = normalize(fullName(s.lastNamePat(), s.lastNameMat(), s.firstName()));
             return students.stream()
-                    .filter(student -> s.dni() == null || student.getDni() == null)
-                    .map(student -> Map.entry(student, similarity.apply(name,
-                            normalize(fullName(student.getLastNamePat(), student.getLastNameMat(), student.getFirstName())))))
+                    .map(student -> Map.entry(student, similarity.apply(name, nameOf(student))))
+                    .filter(entry -> s.dni() == null || entry.getKey().getDni() == null || entry.getValue() >= 1.0)
                     .filter(entry -> entry.getValue() >= SIMILAR_NAME)
                     .sorted(Map.Entry.<Student, Double>comparingByValue().reversed())
                     .limit(MAX_CANDIDATES)

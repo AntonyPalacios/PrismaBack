@@ -1,6 +1,7 @@
 package pe.com.edu.prisma.students;
 
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -12,6 +13,8 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
 
     // withdrawn enrollments count too: there is one row per student and stage
     boolean existsByStudentIdAndStageId(Long studentId, Long stageId);
+
+    Optional<Enrollment> findByStudentIdAndStageId(Long studentId, Long stageId);
 
     // who is enrolled in a stage today (the current enrollments, see CurrentEnrollments)
     List<Enrollment> findByStageIdAndActiveTrue(Long stageId);

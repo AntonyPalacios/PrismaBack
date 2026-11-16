@@ -249,10 +249,10 @@ class StudentImportApiIT {
                 .isEqualTo(count("SELECT id FROM career WHERE name = 'Letras'"));
         assertThat(count("SELECT tutor_id FROM tutor_assignment ta JOIN student_stage ss ON ss.id = ta.student_stage_id "
                 + "WHERE ss.student_id = ? AND ta.valid_to IS NULL", valeria)).isEqualTo(silvia);
-        // the registered student's data is not touched
+        // the names of a registered student are never overwritten (the file says "Lucia")
         assertThat(jdbc.queryForObject("SELECT first_name FROM student WHERE id = ?", String.class, lucia)).isEqualTo("Lucía");
         assertThat(output.getOut()).contains("Student import confirmed: batchId=" + batch
-                + " created=1 enrolled=3 tutorsAssigned=1 rows=3");
+                + " created=1 updated=2 enrolled=3 tutorsAssigned=1 rows=3");
 
         as("ADMIN", post(BATCHES + "/" + batch + "/confirm"))
                 .andExpect(status().isConflict())
@@ -279,26 +279,84 @@ class StudentImportApiIT {
     }
 
     @Test
-    void anInactiveOrAlreadyEnrolledStudentGoesToAPerson() throws Exception {
+    void anInactiveStudentGoesToAPersonWhenTheBatchEnrolls() throws Exception {
         long retired = student("Ana", "Zapata", null, "70099887", false);
-        jdbc.update("INSERT INTO student_stage (student_id, stage_id) VALUES (?, ?)", lucia, stage);
-        String json = uploaded(xlsx(row("Ana", "Zapata", null, "70099887"), row("Lucía", "Quispe", "Mamani", "72345678")), stage);
+        String json = uploaded(xlsx(row("Ana", "Zapata", null, "70099887")), stage);
         long batch = id(json);
 
-        assertThat(JsonPath.<List<String>>read(json, "$.rows[*].status")).containsExactly("UNRESOLVED", "UNRESOLVED");
+        assertThat(JsonPath.<String>read(json, "$.rows[0].status")).isEqualTo("UNRESOLVED");
         assertThat(JsonPath.<String>read(json, "$.rows[0].notice")).contains("dado de baja");
-        assertThat(JsonPath.<String>read(json, "$.rows[1].notice")).isEqualTo("Ya está matriculado en esta etapa: no se volverá a matricular.");
-
         resolve("ADMIN", batch, rowId(json, 2), "MATCH", retired)
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.detail").value("Este alumno está dado de baja: reactívalo antes de matricularlo, o ignora la fila."));
         resolve("ADMIN", batch, rowId(json, 2), "IGNORE", null).andExpect(status().isOk());
-        resolve("ADMIN", batch, rowId(json, 3), "MATCH", lucia).andExpect(status().isOk());
         as("ADMIN", post(BATCHES + "/" + batch + "/confirm")).andExpect(status().isOk());
 
-        // never enrolled twice
-        assertThat(count("SELECT count(*) FROM student_stage WHERE student_id = ?", lucia)).isEqualTo(1);
         assertThat(count("SELECT count(*) FROM student_stage WHERE student_id = ?", retired)).isZero();
+    }
+
+    @Test
+    void uploadingTheSameFileAgainUpdatesInsteadOfAskingOrDuplicating(CapturedOutput output) throws Exception {
+        byte[] first = xlsx(
+                row("Lucía", "Quispe", "Mamani", "72345678", null, null, null, "Letras", "Silvia"),
+                row("Mateo", "Rojas"),
+                row("Valeria", "Díaz", "Soto", "70011223"));
+        as("ADMIN", post(BATCHES + "/" + id(uploaded(first, stage)) + "/confirm")).andExpect(status().isOk());
+        long ana = jdbc.queryForObject("INSERT INTO app_user (email, first_name, last_name_pat) "
+                + "VALUES ('ana.soto@prueba.pe', 'Ana', 'Soto') RETURNING id", Long.class);
+        jdbc.update("INSERT INTO user_role (user_id, role_id) SELECT ?, id FROM role WHERE name = 'TUTOR'", ana);
+
+        // the same students, with data corrected or added: nobody needs a person
+        String json = uploaded(xlsx(
+                row("LUCIA", "QUISPE", "MAMANI", "72345678", "lucia@correo.pe", "987654321", "17/05/2009", "Ciencias", "Ana"),
+                row("mateo", "ROJAS", null, "70055667"),
+                row("Valeria", "Díaz", "Soto", "70011223", null, null, null, "Medicina", "Pedro")), stage);
+        long batch = id(json);
+        assertThat(JsonPath.<List<String>>read(json, "$.rows[*].status"))
+                .containsExactly("AUTO_MATCHED", "AUTO_MATCHED", "AUTO_MATCHED");
+        assertThat(JsonPath.<Integer>read(json, "$.unresolvedRows")).isZero();
+        assertThat(JsonPath.<String>read(json, "$.rows[0].notice")).contains("Ya está matriculado en esta etapa");
+
+        as("TUTOR", post(BATCHES + "/" + batch + "/confirm")).andExpect(status().isOk());
+
+        try {
+            // nobody duplicated, nobody enrolled twice
+            assertThat(count("SELECT count(*) FROM student")).isEqualTo(3);
+            assertThat(count("SELECT count(*) FROM student_stage")).isEqualTo(3);
+            // contact data is updated; an empty cell erases nothing; names stay as registered
+            assertThat(jdbc.queryForMap("SELECT first_name, email, phone, birth_date::text AS born FROM student WHERE id = ?", lucia))
+                    .containsEntry("first_name", "Lucía").containsEntry("email", "lucia@correo.pe")
+                    .containsEntry("phone", "987654321").containsEntry("born", "2009-05-17");
+            // a student without DNI takes the one the file brings
+            assertThat(jdbc.queryForObject("SELECT dni FROM student WHERE id = ?", String.class, mateo)).isEqualTo("70055667");
+            // the enrollment takes the new career and tutor, keeping the tutor history
+            assertThat(count("SELECT career_id FROM student_stage WHERE student_id = ?", lucia))
+                    .isEqualTo(count("SELECT id FROM career WHERE name = 'Ciencias'"));
+            assertThat(count("SELECT tutor_id FROM tutor_assignment ta JOIN student_stage ss ON ss.id = ta.student_stage_id "
+                    + "WHERE ss.student_id = ? AND ta.valid_to IS NULL", lucia)).isEqualTo(ana);
+            assertThat(count("SELECT count(*) FROM tutor_assignment ta JOIN student_stage ss ON ss.id = ta.student_stage_id "
+                    + "WHERE ss.student_id = ?", lucia)).isEqualTo(2);
+            assertThat(output.getOut()).contains("Student import confirmed: batchId=" + batch
+                    + " created=0 updated=3 enrolled=0 tutorsAssigned=1 rows=3");
+        } finally {
+            jdbc.update("DELETE FROM tutor_assignment");
+            jdbc.update("DELETE FROM user_role WHERE user_id = ?", ana);
+            jdbc.update("DELETE FROM app_user WHERE id = ?", ana);
+        }
+    }
+
+    @Test
+    void theSameNameWithAnotherDniOrSharedByTwoStudentsGoesToAPerson() throws Exception {
+        student("Mateo", "Rojas", null, "70000001", true); // a second Mateo Rojas
+        String json = uploaded(xlsx(
+                row("Lucía", "Quispe", "Mamani", "72345679"), // one digit off: a typo, not a new student
+                row("Mateo", "Rojas"), // two students with this name
+                row("Lucio", "Quispe", "Mamani", "70000002")), null); // similar name, another DNI: someone else
+
+        assertThat(JsonPath.<List<String>>read(json, "$.rows[*].status"))
+                .containsExactly("UNRESOLVED", "UNRESOLVED", "NEW_STUDENT");
+        assertThat(JsonPath.<List<Integer>>read(json, "$.rows[0].candidates[*].id")).containsExactly((int) lucia);
+        assertThat(JsonPath.<List<Integer>>read(json, "$.rows[1].candidates[*].id")).hasSize(2);
     }
 
     @Test
