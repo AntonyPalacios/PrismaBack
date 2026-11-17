@@ -71,7 +71,8 @@ class LogbookApiIT {
         jdbc.update("INSERT INTO tutor_assignment (student_stage_id, tutor_id) VALUES (?, ?)", enroll(lucia, stage), silvia);
         enroll(mateo, stage); // no tutor
         // what Ruth wrote back then
-        jdbc.update("INSERT INTO log_entry (student_id, author_id, motivo, session_date) VALUES (?, ?, 'Ansiedad', ?)",
+        jdbc.update("INSERT INTO log_entry (student_id, author_id, motivo, session_date, meeting_with) "
+                + "VALUES (?, ?, 'Ansiedad', ?, 'BOTH')",
                 lucia, ruth, TODAY.minusYears(1).minusMonths(1));
     }
 
@@ -119,7 +120,7 @@ class LogbookApiIT {
 
     private static String entry(LocalDate date, String reason, String agreements, String observations, boolean confirm) {
         return """
-                {"sessionDate": "%s", "reason": %s, "agreements": %s, "observations": %s, "confirm": %s}
+                {"sessionDate": "%s", "meetingWith": "PARENT", "reason": %s, "agreements": %s, "observations": %s, "confirm": %s}
                 """.formatted(date, quote(reason), quote(agreements), quote(observations), confirm);
     }
 
@@ -133,6 +134,7 @@ class LogbookApiIT {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.authorName").value("Valle Gómez, Silvia"))
                 .andExpect(jsonPath("$.sessionDate").value(TODAY.minusDays(3).toString()))
+                .andExpect(jsonPath("$.meetingWith").value("PARENT"))
                 .andExpect(jsonPath("$.reason").value("Bajó en Álgebra"))
                 .andExpect(jsonPath("$.createdAt").exists());
         write("TUTOR", silvia, lucia, entry(TODAY, "Seguimiento", "Mantener", "Bien", false)).andExpect(status().isCreated());
@@ -143,7 +145,8 @@ class LogbookApiIT {
                 .andExpect(jsonPath("$.entries[0].reason").value("Seguimiento"))
                 .andExpect(jsonPath("$.entries[1].reason").value("Bajó en Álgebra"))
                 // a former tutor's entry is part of the student's history
-                .andExpect(jsonPath("$.entries[2].authorName").value("Salas Ríos, Ruth"));
+                .andExpect(jsonPath("$.entries[2].authorName").value("Salas Ríos, Ruth"))
+                .andExpect(jsonPath("$.entries[2].meetingWith").value("BOTH"));
         read("ADMIN", admin, lucia, "?page=1&size=2").andExpect(status().isOk())
                 .andExpect(jsonPath("$.entries.length()").value(1))
                 .andExpect(jsonPath("$.entries[0].reason").value("Ansiedad"))
@@ -155,21 +158,27 @@ class LogbookApiIT {
     void anEmptyTextAsksForConfirmationAndAllEmptyIsRejected() throws Exception {
         write("TUTOR", silvia, lucia, entry(TODAY, "Charla corta", null, "  ", false)).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.requiresConfirmation").value(true))
+                .andExpect(jsonPath("$.emptyFields.length()").value(1))
                 .andExpect(jsonPath("$.emptyFields[0]").value("agreements"))
-                .andExpect(jsonPath("$.emptyFields[1]").value("observations"))
+                .andExpect(jsonPath("$.detail").value(containsString("compromisos / recomendaciones")))
                 .andExpect(jsonPath("$.detail").value(containsString("no se podrá editar ni borrar")));
         write("TUTOR", silvia, lucia, entry(TODAY, "Charla corta", null, "  ", true)).andExpect(status().isCreated())
                 .andExpect(jsonPath("$.observations").doesNotExist());
         write("TUTOR", silvia, lucia, entry(TODAY, null, "", " ", true)).andExpect(status().isBadRequest());
+        // observations are optional for good: no confirmation needed without them
+        write("TUTOR", silvia, lucia, entry(TODAY, "Motivo", "Compromiso", null, false)).andExpect(status().isCreated());
         Integer count = jdbc.queryForObject("SELECT count(*) FROM log_entry WHERE student_id = ?", Integer.class, lucia);
-        assertThat(count).isEqualTo(2);
+        assertThat(count).isEqualTo(3);
     }
 
     @Test
     void theSessionDateIsRequiredAndNeverInTheFuture() throws Exception {
         write("TUTOR", silvia, lucia, entry(TODAY.plusDays(1), "a", "b", "c", true)).andExpect(status().isBadRequest());
-        write("TUTOR", silvia, lucia, "{\"reason\": \"a\", \"agreements\": \"b\", \"observations\": \"c\"}")
+        write("TUTOR", silvia, lucia, "{\"meetingWith\": \"STUDENT\", \"reason\": \"a\", \"agreements\": \"b\"}")
                 .andExpect(status().isBadRequest());
+        // who the tutor met is required too, and only one of the three options
+        write("TUTOR", silvia, lucia, entry(TODAY, "a", "b", "c", true).replace("\"PARENT\"", "null")).andExpect(status().isBadRequest());
+        write("TUTOR", silvia, lucia, entry(TODAY, "a", "b", "c", true).replace("PARENT", "TEACHER")).andExpect(status().isBadRequest());
     }
 
     @Test

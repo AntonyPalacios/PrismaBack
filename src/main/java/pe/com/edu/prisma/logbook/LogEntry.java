@@ -2,6 +2,8 @@ package pe.com.edu.prisma.logbook;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -39,6 +41,10 @@ public class LogEntry extends BaseEntity {
 
     @Column(name = "session_date", nullable = false, updatable = false)
     private LocalDate sessionDate;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "meeting_with", nullable = false, updatable = false, length = 10)
+    private MeetingWith meetingWith;
 
     @Column(name = "motivo", updatable = false)
     private String reason;

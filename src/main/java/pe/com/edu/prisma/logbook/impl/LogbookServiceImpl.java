@@ -47,7 +47,7 @@ public class LogbookServiceImpl implements LogbookService {
     static final String STUDENT_NOT_FOUND = "No encontramos al alumno solicitado.";
     static final String NOT_THEIR_TUTOR_READ = "Solo su tutor actual y el administrador pueden ver la bitácora de este alumno.";
     static final String NOT_THEIR_TUTOR_WRITE = "Solo el tutor actual del alumno puede registrar entradas en su bitácora.";
-    static final String ALL_EMPTY = "Escribe al menos el motivo, los acuerdos o las observaciones de la sesión.";
+    static final String ALL_EMPTY = "Escribe al menos el motivo, los compromisos o las observaciones de la sesión.";
     static final String FUTURE_DATE = "La fecha de la sesión no puede ser futura.";
     static final String SOME_EMPTY = "Quedaron vacíos: %s. ¿Guardar la entrada así? Después no se podrá editar ni borrar.";
 
@@ -102,10 +102,10 @@ public class LogbookServiceImpl implements LogbookService {
         if (reason == null && agreements == null && observations == null) {
             throw new InvalidRequestException(ALL_EMPTY);
         }
+        // observations are optional for good: like the academy's sheet, an entry is reason + agreements
         List<String> empty = new ArrayList<>();
         if (reason == null) empty.add("reason");
         if (agreements == null) empty.add("agreements");
-        if (observations == null) empty.add("observations");
         if (!empty.isEmpty() && !request.confirm()) {
             String labels = empty.stream().map(LogbookServiceImpl::label).collect(Collectors.joining(", "));
             throw new ConfirmationRequiredException(SOME_EMPTY.formatted(labels), Map.of("emptyFields", empty));
@@ -115,6 +115,7 @@ public class LogbookServiceImpl implements LogbookService {
         entry.setStudent(student);
         entry.setAuthor(userRepository.getReferenceById(currentUser.id()));
         entry.setSessionDate(request.sessionDate());
+        entry.setMeetingWith(request.meetingWith());
         entry.setReason(reason);
         entry.setAgreements(agreements);
         entry.setObservations(observations);
@@ -136,8 +137,7 @@ public class LogbookServiceImpl implements LogbookService {
     private static String label(String field) {
         return switch (field) {
             case "reason" -> "motivo";
-            case "agreements" -> "acuerdos";
-            default -> "observaciones";
+            default -> "compromisos / recomendaciones";
         };
     }
 
@@ -148,7 +148,7 @@ public class LogbookServiceImpl implements LogbookService {
     private static LogEntryDto toDto(LogEntry entry) {
         User author = entry.getAuthor();
         return new LogEntryDto(entry.getId(), entry.getStudent().getId(), author.getId(), displayName(author),
-                entry.getSessionDate(), entry.getCreatedAt(), entry.getReason(), entry.getAgreements(),
+                entry.getSessionDate(), entry.getMeetingWith(), entry.getCreatedAt(), entry.getReason(), entry.getAgreements(),
                 entry.getObservations());
     }
 
