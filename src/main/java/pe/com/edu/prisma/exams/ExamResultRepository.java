@@ -12,6 +12,8 @@ public interface ExamResultRepository extends JpaRepository<ExamResult, Long> {
 
     boolean existsByExamId(Long examId);
 
+    List<ExamResult> findByExamId(Long examId);
+
     /** A student's results in the exams they sat, with exam, mock exam, stage and cycle loaded. */
     @Query("""
             select r from ExamResult r

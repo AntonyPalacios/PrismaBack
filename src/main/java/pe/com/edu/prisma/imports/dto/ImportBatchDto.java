@@ -10,7 +10,8 @@ import pe.com.edu.prisma.imports.ImportBatchType;
  * empty in listings). {@code stageLabel} = "Ciclo · Etapa" where the
  * students will be enrolled (null when a students batch only registers).
  * Exam results batches carry their exam ({@code examLabel} = "Simulacro ·
- * Tipo") and {@code skippedRows}, the rows of the file that were not
+ * Tipo"), {@code replacesResults} (a forced reload: confirming replaces the
+ * exam's current results) and {@code skippedRows}, the rows of the file that were not
  * students; students batches have them null and 0.
  */
 public record ImportBatchDto(
@@ -29,6 +30,7 @@ public record ImportBatchDto(
         int unresolvedRows,
         int ignoredRows,
         int skippedRows,
+        boolean replacesResults,
         List<ImportRowDto> rows
 ) {
 }

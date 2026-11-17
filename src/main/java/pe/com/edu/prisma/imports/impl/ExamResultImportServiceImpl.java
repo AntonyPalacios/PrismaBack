@@ -20,6 +20,7 @@ import org.apache.commons.text.similarity.JaroWinklerSimilarity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import pe.com.edu.prisma.academic.CycleRepository;
@@ -67,6 +68,7 @@ import pe.com.edu.prisma.students.dto.UpsertStudentRequest;
 import pe.com.edu.prisma.tutoring.TutorAssignment;
 import pe.com.edu.prisma.tutoring.TutorAssignmentRepository;
 import pe.com.edu.prisma.tutoring.TutorAssignmentService;
+import pe.com.edu.prisma.users.Role;
 import pe.com.edu.prisma.users.User;
 import pe.com.edu.prisma.users.UserRepository;
 import tools.jackson.core.type.TypeReference;
@@ -87,6 +89,7 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
     static final String EXAM_NOT_FOUND = "No encontramos el examen solicitado.";
     static final String NOT_CURRENT_STAGE = "Solo se cargan resultados de los exámenes de la etapa vigente del ciclo activo.";
     static final String HAS_RESULTS = "Este examen ya tiene resultados: no se pueden cargar otra vez.";
+    static final String ONLY_ADMIN_RELOADS = "Solo un administrador puede recargar los resultados de un examen.";
     static final String EXAM_GONE = "El examen de esta importación ya no existe: descártala.";
     static final String CHOOSE_STUDENT = "Elige el alumno con el que se empareja la fila.";
     static final String DNI_EXISTS = "Ya existe un alumno con ese DNI: empareja la fila con él.";
@@ -162,7 +165,10 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
 
     @Override
     @Transactional
-    public ImportBatchDto upload(Long examId, MultipartFile file) {
+    public ImportBatchDto upload(Long examId, MultipartFile file, boolean reload) {
+        if (reload && !currentUser.hasRole(Role.ADMIN)) {
+            throw new AccessDeniedException(ONLY_ADMIN_RELOADS);
+        }
         Exam exam = examRepository.findById(examId).orElseThrow(() -> new ResourceNotFoundException(EXAM_NOT_FOUND));
         Stage stage = exam.getMockExam().getStage();
         boolean current = cycleRepository.findFirstByStatus(CycleStatus.ACTIVE)
@@ -172,7 +178,8 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
         if (!current) {
             throw new BusinessRuleException(NOT_CURRENT_STAGE);
         }
-        if (resultRepository.existsByExamId(examId)) {
+        boolean hasResults = resultRepository.existsByExamId(examId);
+        if (hasResults && !reload) {
             throw new BusinessRuleException(HAS_RESULTS);
         }
         ExamType type = exam.getExamType();
@@ -192,6 +199,7 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
         batch.setExam(exam);
         batch.setStage(stage);
         batch.setSkippedRows(parsed.skipped());
+        batch.setReplacesResults(hasResults); // a reload of an exam without results is a plain load
         batch.setFileName(Optional.ofNullable(file.getOriginalFilename()).orElse("resultados.xlsx"));
         batch.setUploadedBy(currentUser.id());
         batch.setUploadedAt(OffsetDateTime.now(clock));
@@ -279,13 +287,25 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
         }
         Exam exam = examRepository.findById(batch.getExam().getId())
                 .orElseThrow(() -> new BusinessRuleException(EXAM_GONE));
-        if (resultRepository.existsByExamId(exam.getId())) {
+        if (batch.isReplacesResults() && !currentUser.hasRole(Role.ADMIN)) {
+            throw new AccessDeniedException(ONLY_ADMIN_RELOADS);
+        }
+        if (!batch.isReplacesResults() && resultRepository.existsByExamId(exam.getId())) {
             throw new BusinessRuleException(HAS_RESULTS);
         }
         List<ImportRow> rows = batch.getRows().stream()
                 .filter(row -> row.getStatus() != ImportRowStatus.IGNORED)
                 .toList();
         rejectSameStudentTwice(rows);
+
+        int replaced = 0;
+        if (batch.isReplacesResults()) {
+            // the forced reload: out with the exam's results, in the same transaction as the new ones
+            List<ExamResult> previous = resultRepository.findByExamId(exam.getId());
+            replaced = previous.size();
+            resultRepository.deleteAll(previous);
+            resultRepository.flush(); // before inserting: one result per student and exam
+        }
 
         Stage stage = batch.getStage();
         Long careerId = defaultCareer(exam.getExamType()).map(Career::getId).orElse(null);
@@ -328,7 +348,7 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
         batch.setConfirmedBy(currentUser.id());
         batch.setConfirmedAt(OffsetDateTime.now(clock));
         log.info("Exam results import confirmed: batchId={} examId={} results={} studentsCreated={} enrolled={} "
-                + "tutorsAssigned={}", batchId, exam.getId(), rows.size(), created, enrolled, tutors);
+                + "tutorsAssigned={} replaced={}", batchId, exam.getId(), rows.size(), created, enrolled, tutors, replaced);
         return toDto(batch, true);
     }
 
@@ -505,7 +525,7 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
                 stage.getId(), stage.getCycle().getName() + " · " + stage.getName(), exam.getId(), examLabel,
                 batch.getUploadedAt(), rows.size(), count(counts, ImportRowStatus.NEW_STUDENT), matched,
                 count(counts, ImportRowStatus.UNRESOLVED), count(counts, ImportRowStatus.IGNORED),
-                batch.getSkippedRows(), withRows ? rowsDto(rows, stage) : List.of());
+                batch.getSkippedRows(), batch.isReplacesResults(), withRows ? rowsDto(rows, stage) : List.of());
     }
 
     private List<ImportRowDto> rowsDto(List<ImportRow> rows, Stage stage) {

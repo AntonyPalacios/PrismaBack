@@ -11,9 +11,10 @@ public interface ExamResultImportService {
     /**
      * Reads the file into a pending batch; nothing real is written. Only an
      * exam of a mock exam in the current stage of the active cycle, while it
-     * has no results.
+     * has no results — unless an admin asks for a {@code reload}: then the
+     * batch replaces the exam's results when it is confirmed (REQ-EXAMS-03).
      */
-    ImportBatchDto upload(Long examId, MultipartFile file);
+    ImportBatchDto upload(Long examId, MultipartFile file, boolean reload);
 
     /** Exam results batches, newest first; only those with {@code status} when given. Without rows. */
     List<ImportBatchDto> findAll(ImportBatchStatus status);
@@ -22,7 +23,11 @@ public interface ExamResultImportService {
 
     ImportBatchDto resolve(Long batchId, Long rowId, ResolveRowRequest request);
 
-    /** Registers new students, enrolls who is missing and saves the results — all or nothing. */
+    /**
+     * Registers new students, enrolls who is missing and saves the results —
+     * all or nothing. A reload batch (only an admin) first deletes the
+     * exam's current results.
+     */
     ImportBatchDto confirm(Long batchId);
 
     void discard(Long batchId);
