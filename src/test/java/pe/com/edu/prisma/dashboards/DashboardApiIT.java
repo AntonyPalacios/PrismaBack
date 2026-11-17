@@ -75,20 +75,32 @@ class DashboardApiIT {
         course(old, 1, 15, 10, 3);
         course(old, 2, 4, 3, 1);
         // Regular 1: Diego 700, Lucía and Mateo tied at 650, Ana did not attend
-        result(regular1, diegoNow, "700.00", true, "700", "700");
+        long diegoFirst = result(regular1, diegoNow, "700.00", true, "700", "700");
+        course(diegoFirst, 1, 10, 10, 8);
+        course(diegoFirst, 2, 0, 8, 0); // no correct answer at all: a zero that counts
+        course(diegoFirst, 3, 4, 2, 12);
+        course(diegoFirst, 6, 1, 0, 6);
         long first = result(regular1, luciaNow, "650.00", true, "640.5", "660");
         course(first, 1, 20, 6, 2);
         course(first, 2, 5, 2, 1);
         course(first, 3, 10, 6, 2);
         course(first, 6, 3, 3, 1); // Estadística: only evaluated in Regular 1
-        result(regular1, mateoNow, "650.00", true, "650", "650");
-        result(regular1, anaNow, "80.00", false, "0", "0");
+        long mateoFirst = result(regular1, mateoNow, "650.00", true, "650", "650");
+        course(mateoFirst, 1, 15, 5, 8);
+        course(mateoFirst, 2, 2, 2, 4);
+        course(mateoFirst, 3, 6, 6, 6);
+        course(mateoFirst, 6, 2, 2, 3);
+        long anaFirst = result(regular1, anaNow, "80.00", false, "0", "0");
+        course(anaFirst, 1, 0, 0, 28);
         // Regular 2: Lucía 722.76 first, Diego 600; Mateo did not attend
         long second = result(regular2, luciaNow, "722.76", true, "787.5", "819.4");
         course(second, 1, 26, 2, 0);
         course(second, 2, 7, 1, 0);
         course(second, 3, 17, 1, 0);
-        result(regular2, diegoNow, "600.00", true, "600", "600");
+        long diegoSecond = result(regular2, diegoNow, "600.00", true, "600", "600");
+        course(diegoSecond, 1, 12, 8, 8);
+        course(diegoSecond, 2, 3, 5, 0);
+        course(diegoSecond, 3, 5, 5, 8);
         result(regular2, mateoNow, "80.00", false, "0", "0");
     }
 
@@ -280,5 +292,75 @@ class DashboardApiIT {
         dashboard("area-distribution", "ADMIN", admin, nobody, true)
                 .andExpect(jsonPath("$.areas.length()").value(0))
                 .andExpect(jsonPath("$.totals.length()").value(0));
+    }
+
+    private ResultActions group(String role, long userId, String query) throws Exception {
+        AuthenticatedUser principal = () -> userId;
+        var auth = new UsernamePasswordAuthenticationToken(principal, null, List.of(new SimpleGrantedAuthority("ROLE_" + role)));
+        return mockMvc.perform(get("/api/v1/dashboards/group-comparison" + query).with(authentication(auth)).with(csrf()));
+    }
+
+    @Test
+    void theAcademyByExamWithAverageLowestAndHighestPerAreaAndTheCourseAverages() throws Exception {
+        group("ADMIN", admin, "?examTypeId=" + LETRAS).andExpect(status().isOk())
+                // only the active cycle, by date
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].examId").value(regular1))
+                .andExpect(jsonPath("$[0].examName").value("Regular 1"))
+                .andExpect(jsonPath("$[0].examDate").value("2026-03-14"))
+                // Diego, Lucía and Mateo; Ana did not attend
+                .andExpect(jsonPath("$[0].students").value(3))
+                .andExpect(jsonPath("$[0].areas[0].areaName").value("Lectura"))
+                .andExpect(jsonPath("$[0].areas[0].correctAvg").value(15.0))
+                .andExpect(jsonPath("$[0].areas[0].correctMin").value(10))
+                .andExpect(jsonPath("$[0].areas[0].correctMax").value(20))
+                .andExpect(jsonPath("$[0].areas[0].wrongAvg").value(7.0))
+                .andExpect(jsonPath("$[0].areas[0].wrongMin").value(5))
+                .andExpect(jsonPath("$[0].areas[0].wrongMax").value(10))
+                // Matemática: each student's sum of its courses (5, 18 and 10 correct)
+                .andExpect(jsonPath("$[0].areas[1].correctAvg").value(11.0))
+                .andExpect(jsonPath("$[0].areas[1].correctMin").value(5))
+                .andExpect(jsonPath("$[0].areas[1].correctMax").value(18))
+                .andExpect(jsonPath("$[0].areas[1].wrongAvg").value(10.33))
+                .andExpect(jsonPath("$[0].areas[1].wrongMin").value(10))
+                .andExpect(jsonPath("$[0].areas[1].wrongMax").value(11))
+                // per course; Diego's zero counts for the average
+                .andExpect(jsonPath("$[0].courses.length()").value(4))
+                .andExpect(jsonPath("$[0].courses[1].courseId").value(2))
+                .andExpect(jsonPath("$[0].courses[1].correctAvg").value(2.33))
+                .andExpect(jsonPath("$[0].courses[3].courseName").value("Estadística"))
+                .andExpect(jsonPath("$[0].courses[3].correctAvg").value(2.0))
+                // Regular 2 did not evaluate Estadística, and Mateo did not attend
+                .andExpect(jsonPath("$[1].examId").value(regular2))
+                .andExpect(jsonPath("$[1].students").value(2))
+                .andExpect(jsonPath("$[1].courses.length()").value(3))
+                .andExpect(jsonPath("$[1].areas[0].correctAvg").value(19.0))
+                .andExpect(jsonPath("$[1].areas[0].correctMin").value(12))
+                .andExpect(jsonPath("$[1].areas[0].correctMax").value(26));
+        // an exam type without exams in the active cycle
+        group("ADMIN", admin, "?examTypeId=1").andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void aTutorAlwaysGetsTheirOwnGroupAndAnAdminMayPickOne() throws Exception {
+        // Silvia's group is Lucía alone
+        for (ResultActions own : List.of(group("TUTOR", silvia, "?examTypeId=" + LETRAS),
+                group("ADMIN", admin, "?examTypeId=" + LETRAS + "&tutorId=" + silvia))) {
+            own.andExpect(status().isOk())
+                    .andExpect(jsonPath("$.length()").value(2))
+                    .andExpect(jsonPath("$[0].students").value(1))
+                    .andExpect(jsonPath("$[0].areas[0].correctAvg").value(20.0))
+                    .andExpect(jsonPath("$[0].areas[0].correctMin").value(20))
+                    .andExpect(jsonPath("$[0].areas[0].correctMax").value(20));
+        }
+        // a tutor without students: nothing, never the academy
+        group("TUTOR", admin, "?examTypeId=" + LETRAS).andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
+        group("ADMIN", admin, "?examTypeId=" + LETRAS + "&tutorId=" + admin).andExpect(jsonPath("$.length()").value(0));
+
+        group("TUTOR", silvia, "?examTypeId=" + LETRAS + "&tutorId=" + admin).andExpect(status().isForbidden());
+        group("COORDINADOR", admin, "?examTypeId=" + LETRAS).andExpect(status().isForbidden());
+        group("ADMIN", admin, "?examTypeId=999999").andExpect(status().isNotFound());
+        group("ADMIN", admin, "?examTypeId=" + LETRAS + "&tutorId=999999").andExpect(status().isNotFound());
+        group("ADMIN", admin, "").andExpect(status().isBadRequest());
     }
 }
