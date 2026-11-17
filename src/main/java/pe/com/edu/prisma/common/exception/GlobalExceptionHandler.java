@@ -60,6 +60,7 @@ public class GlobalExceptionHandler {
         log.info("409 on {}: confirmation required", describe(request));
         ProblemDetail problem = problem(HttpStatus.CONFLICT, ex.getMessage());
         problem.setProperty("requiresConfirmation", true);
+        ex.getProperties().forEach(problem::setProperty);
         return problem;
     }
 
