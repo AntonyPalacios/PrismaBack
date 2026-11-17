@@ -3,6 +3,8 @@ package pe.com.edu.prisma.exams;
 import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -13,6 +15,12 @@ public interface ExamResultRepository extends JpaRepository<ExamResult, Long> {
     boolean existsByExamId(Long examId);
 
     List<ExamResult> findByExamId(Long examId);
+
+    Optional<ExamResult> findByExamIdAndEnrollmentId(Long examId, Long enrollmentId);
+
+    // whose result an exam already has
+    @Query("select r.enrollment.id from ExamResult r where r.exam.id = :examId")
+    Set<Long> findEnrollmentIdsByExamId(@Param("examId") Long examId);
 
     /** A student's results in the exams they sat, with exam, mock exam, stage and cycle loaded. */
     @Query("""
