@@ -3,9 +3,13 @@ package pe.com.edu.prisma.students.impl;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.access.AccessDeniedException;
@@ -16,7 +20,9 @@ import pe.com.edu.prisma.academic.Stage;
 import pe.com.edu.prisma.academic.StageRepository;
 import pe.com.edu.prisma.catalog.Career;
 import pe.com.edu.prisma.catalog.CareerRepository;
+import pe.com.edu.prisma.common.SpanishOrder;
 import pe.com.edu.prisma.common.exception.BusinessRuleException;
+import pe.com.edu.prisma.common.exception.InvalidRequestException;
 import pe.com.edu.prisma.common.exception.ResourceNotFoundException;
 import pe.com.edu.prisma.security.CurrentUser;
 import pe.com.edu.prisma.students.Enrollment;
@@ -24,6 +30,11 @@ import pe.com.edu.prisma.students.EnrollmentRepository;
 import pe.com.edu.prisma.students.EnrollmentService;
 import pe.com.edu.prisma.students.Student;
 import pe.com.edu.prisma.students.StudentRepository;
+import pe.com.edu.prisma.students.dto.BulkEnrollmentPreviewRequest;
+import pe.com.edu.prisma.students.dto.BulkEnrollmentPreviewRow;
+import pe.com.edu.prisma.students.dto.BulkEnrollmentPreviewRow.SkipReason;
+import pe.com.edu.prisma.students.dto.BulkEnrollmentRequest;
+import pe.com.edu.prisma.students.dto.BulkEnrollmentResultDto;
 import pe.com.edu.prisma.students.dto.CreateEnrollmentRequest;
 import pe.com.edu.prisma.students.dto.EnrollmentDto;
 import pe.com.edu.prisma.students.dto.UpdateEnrollmentRequest;
@@ -49,6 +60,14 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     static final String WITHDRAWN = "Esta matrícula está retirada: ya no se puede modificar.";
     static final String ONLY_ADMIN_ASSIGNS = "Solo el administrador asigna tutores.";
     static final String CLOSED_CYCLE_ENROLLMENT = "Esta matrícula es de un ciclo cerrado: ya no se puede modificar.";
+    static final String SAME_STAGE = "La etapa de origen y la de destino deben ser distintas.";
+    static final String REPEATED_STUDENT = "Un alumno aparece más de una vez en el lote.";
+
+    // students by last names and first names, as every listing
+    private static final Comparator<Student> BY_NAME = SpanishOrder.<Student>by(Student::getLastNamePat)
+            .thenComparing(SpanishOrder.by(Student::getLastNameMat))
+            .thenComparing(SpanishOrder.by(Student::getFirstName))
+            .thenComparing(Student::getId);
 
     private static final Logger log = LoggerFactory.getLogger(EnrollmentServiceImpl.class);
 
@@ -120,6 +139,73 @@ public class EnrollmentServiceImpl implements EnrollmentService {
             throw new BusinessRuleException(INACTIVE_CAREER);
         }
 
+        return enrollmentMapper.toDto(enroll(student, stage, career), null); // born without a tutor
+    }
+
+    @Override
+    public List<BulkEnrollmentPreviewRow> bulkPreview(BulkEnrollmentPreviewRequest request) {
+        if (request.sourceStageId().equals(request.targetStageId())) {
+            throw new InvalidRequestException(SAME_STAGE);
+        }
+        Stage source = stageRepository.findById(request.sourceStageId())
+                .orElseThrow(() -> new ResourceNotFoundException(STAGE_NOT_FOUND));
+        Stage target = getOpenTarget(request.targetStageId());
+
+        List<Enrollment> enrollments = enrollmentRepository.findWithStudentByStageIdAndActiveTrue(source.getId());
+        Set<Long> alreadyThere = new HashSet<>(enrollmentRepository.findStudentIdsByStageId(target.getId()));
+        Map<Long, User> tutors = tutorAssignmentRepository
+                .findByEnrollmentIdInAndValidToIsNull(enrollments.stream().map(Enrollment::getId).toList()).stream()
+                .collect(Collectors.toMap(a -> a.getEnrollment().getId(), TutorAssignment::getTutor));
+        return enrollments.stream()
+                .sorted(Comparator.comparing(Enrollment::getStudent, BY_NAME))
+                .map(e -> {
+                    Student student = e.getStudent();
+                    SkipReason skip = alreadyThere.contains(student.getId()) ? SkipReason.ALREADY_ENROLLED
+                            : !student.isActive() ? SkipReason.INACTIVE_STUDENT : null;
+                    // starting points only: what can no longer be picked comes empty
+                    Long careerId = e.getCareer() != null && e.getCareer().isActive() ? e.getCareer().getId() : null;
+                    User tutor = tutors.get(e.getId());
+                    Long tutorId = tutor != null && isActiveTutor(tutor) ? tutor.getId() : null;
+                    return new BulkEnrollmentPreviewRow(student.getId(), displayName(student), careerId, tutorId, skip);
+                })
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public BulkEnrollmentResultDto bulk(BulkEnrollmentRequest request) {
+        Stage target = getOpenTarget(request.targetStageId());
+        Set<Long> seen = new HashSet<>();
+        if (!request.rows().stream().allMatch(row -> seen.add(row.studentId()))) {
+            throw new InvalidRequestException(REPEATED_STUDENT);
+        }
+        Set<Long> alreadyThere = new HashSet<>(enrollmentRepository.findStudentIdsByStageId(target.getId()));
+        int created = 0;
+        int skipped = 0;
+        for (BulkEnrollmentRequest.Row row : request.rows()) {
+            Student student = studentRepository.findById(row.studentId())
+                    .orElseThrow(() -> new ResourceNotFoundException(STUDENT_NOT_FOUND));
+            // the preview already showed these as left out
+            if (alreadyThere.contains(student.getId()) || !student.isActive()) {
+                skipped++;
+                continue;
+            }
+            Career career = findCareer(row.careerId());
+            if (career != null && !career.isActive()) {
+                throw new BusinessRuleException(INACTIVE_CAREER);
+            }
+            Enrollment enrollment = enroll(student, target, career);
+            if (row.tutorUserId() != null) {
+                // the same rules and history as one by one; a rejected tutor undoes the whole batch
+                tutorAssignmentService.assign(enrollment.getId(), row.tutorUserId());
+            }
+            created++;
+        }
+        log.info("Bulk enrollment: stageId={} created={} skipped={}", target.getId(), created, skipped);
+        return new BulkEnrollmentResultDto(created, skipped);
+    }
+
+    private Enrollment enroll(Student student, Stage stage, Career career) {
         Enrollment enrollment = new Enrollment(); // born active, never copied from an earlier stage
         enrollment.setStudent(student);
         enrollment.setStage(stage);
@@ -127,7 +213,28 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         Enrollment saved = enrollmentRepository.save(enrollment);
         log.info("Student enrolled: enrollmentId={} studentId={} stageId={}",
                 saved.getId(), student.getId(), stage.getId());
-        return enrollmentMapper.toDto(saved, null); // born without a tutor
+        return saved;
+    }
+
+    /** The target of a mass enrollment: it exists and its cycle is not closed. */
+    private Stage getOpenTarget(Long stageId) {
+        Stage stage = stageRepository.findById(stageId)
+                .orElseThrow(() -> new ResourceNotFoundException(STAGE_NOT_FOUND));
+        if (stage.getCycle().getStatus() == CycleStatus.CLOSED) {
+            throw new BusinessRuleException(CLOSED_CYCLE);
+        }
+        return stage;
+    }
+
+    private static boolean isActiveTutor(User user) {
+        return user.isActive() && user.getRoles().stream().anyMatch(role -> Role.TUTOR.equals(role.getName()));
+    }
+
+    // "Apellidos, Nombres"
+    private static String displayName(Student student) {
+        String lastNames = Stream.of(student.getLastNamePat(), student.getLastNameMat()).filter(Objects::nonNull)
+                .filter(p -> !p.isBlank()).collect(Collectors.joining(" "));
+        return lastNames + ", " + student.getFirstName();
     }
 
     @Override
