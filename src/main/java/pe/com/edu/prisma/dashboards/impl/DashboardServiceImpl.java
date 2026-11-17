@@ -23,6 +23,7 @@ import pe.com.edu.prisma.dashboards.DashboardService;
 import pe.com.edu.prisma.dashboards.dto.AreaDistributionDto;
 import pe.com.edu.prisma.dashboards.dto.CourseSeriesDto;
 import pe.com.edu.prisma.dashboards.dto.GroupComparisonExamDto;
+import pe.com.edu.prisma.dashboards.dto.MathRadarDto;
 import pe.com.edu.prisma.dashboards.dto.ScoreEvolutionPointDto;
 import pe.com.edu.prisma.dashboards.dto.ScoreEvolutionPointDto.AreaScoreDto;
 import pe.com.edu.prisma.exams.Exam;
@@ -40,6 +41,9 @@ import pe.com.edu.prisma.users.UserRepository;
 @Service
 @Transactional(readOnly = true)
 public class DashboardServiceImpl implements DashboardService {
+
+    // Matemática, fixed reference data seeded by V2 (areas never change)
+    private static final Long MATH_AREA_ID = 2L;
 
     static final String STUDENT_NOT_FOUND = "No encontramos el alumno solicitado.";
     static final String NOT_THEIR_TUTOR = "Solo el administrador o el tutor actual del alumno pueden ver su progreso.";
@@ -159,6 +163,32 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     /** One exam's figures over the results of the group (never empty). */
+    @Override
+    public MathRadarDto mathRadar(Long studentId) {
+        List<ExamResult> results = resultsOf(studentId, false); // by exam date, oldest first
+        int last = results.size() - 1;
+        return new MathRadarDto(last >= 0 ? toRadarExam(results.get(last)) : null,
+                last >= 1 ? toRadarExam(results.get(last - 1)) : null);
+    }
+
+    // one axis per Mathematics course evaluated in that exam, in catalog order
+    private static MathRadarDto.Exam toRadarExam(ExamResult result) {
+        MockExam mockExam = result.getExam().getMockExam();
+        List<MathRadarDto.Axis> axes = result.getCourses().stream()
+                .filter(course -> Objects.equals(course.getCourse().getArea().getId(), MATH_AREA_ID))
+                .sorted(Comparator.comparing(course -> course.getCourse().getId()))
+                .map(course -> {
+                    int total = course.getCorrect() + course.getWrong() + course.getBlank();
+                    BigDecimal percent = total == 0 ? null
+                            : BigDecimal.valueOf(course.getCorrect() * 100L).divide(BigDecimal.valueOf(total), 2, RoundingMode.HALF_UP);
+                    return new MathRadarDto.Axis(course.getCourse().getId(), course.getCourse().getName(),
+                            course.getCorrect(), total, percent);
+                })
+                .toList();
+        return new MathRadarDto.Exam(result.getExam().getId(), mockExam.getName(),
+                result.getExam().getExamType().getName(), mockExam.getExamDate(), axes);
+    }
+
     private static GroupComparisonExamDto toGroupExam(List<ExamResult> results) {
         MockExam mockExam = results.get(0).getExam().getMockExam();
         Map<Long, Area> areas = new TreeMap<>();

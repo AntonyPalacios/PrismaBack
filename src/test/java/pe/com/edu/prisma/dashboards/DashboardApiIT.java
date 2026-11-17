@@ -200,6 +200,39 @@ class DashboardApiIT {
     }
 
     @Test
+    void mathRadarTheLatestExamAndThePreviousOneAsShareOfCorrectAnswers() throws Exception {
+        dashboard("math-radar", "ADMIN", admin, lucia, false).andExpect(status().isOk())
+                .andExpect(jsonPath("$.current.examId").value(regular2))
+                .andExpect(jsonPath("$.current.examName").value("Regular 2"))
+                .andExpect(jsonPath("$.current.examTypeName").value("Letras"))
+                // Lectura is never an axis; only the Mathematics courses evaluated in that exam
+                .andExpect(jsonPath("$.current.axes.length()").value(2))
+                .andExpect(jsonPath("$.current.axes[0].courseId").value(2))
+                .andExpect(jsonPath("$.current.axes[0].correct").value(7))
+                .andExpect(jsonPath("$.current.axes[0].total").value(8))
+                .andExpect(jsonPath("$.current.axes[0].percent").value(87.5))
+                .andExpect(jsonPath("$.current.axes[1].percent").value(94.44))
+                // the exam right before it in the active cycle (the closed cycle's exam never counts)
+                .andExpect(jsonPath("$.previous.examId").value(regular1))
+                .andExpect(jsonPath("$.previous.axes.length()").value(3))
+                .andExpect(jsonPath("$.previous.axes[0].percent").value(62.5))
+                .andExpect(jsonPath("$.previous.axes[2].courseId").value(6))
+                .andExpect(jsonPath("$.previous.axes[2].percent").value(42.86));
+        // Mateo did not attend Regular 2: Regular 1 is his latest, with nothing before it
+        dashboard("math-radar", "ADMIN", admin, mateo, false).andExpect(status().isOk())
+                .andExpect(jsonPath("$.current.examId").value(regular1))
+                .andExpect(jsonPath("$.previous").doesNotExist());
+        long nobody = student("Rosa", "Huamán");
+        dashboard("math-radar", "ADMIN", admin, nobody, false).andExpect(status().isOk())
+                .andExpect(jsonPath("$.current").doesNotExist())
+                .andExpect(jsonPath("$.previous").doesNotExist());
+        dashboard("math-radar", "TUTOR", silvia, lucia, false).andExpect(status().isOk());
+        dashboard("math-radar", "TUTOR", silvia, mateo, false).andExpect(status().isForbidden());
+        dashboard("math-radar", "COORDINADOR", admin, lucia, false).andExpect(status().isForbidden());
+        dashboard("math-radar", "ADMIN", admin, 999_999, false).andExpect(status().isNotFound());
+    }
+
+    @Test
     void earlierCyclesOnlyWhenAsked() throws Exception {
         evolution("ADMIN", admin, lucia, true).andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(3))
