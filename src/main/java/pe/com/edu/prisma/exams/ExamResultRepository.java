@@ -6,6 +6,7 @@ import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import pe.com.edu.prisma.academic.CycleStatus;
 
 public interface ExamResultRepository extends JpaRepository<ExamResult, Long> {
 
@@ -29,6 +30,22 @@ public interface ExamResultRepository extends JpaRepository<ExamResult, Long> {
             where r.exam.id in :examIds and r.attended = true and r.totalScore is not null
             """)
     List<ExamScore> findAttendedScoresByExamIds(@Param("examIds") Collection<Long> examIds);
+
+    /**
+     * The results of everyone who sat an exam of that type in a cycle with
+     * that status, with their course counts, exam and enrollment loaded.
+     */
+    @Query("""
+            select distinct r from ExamResult r
+            join fetch r.exam e
+            join fetch e.mockExam m
+            join fetch r.enrollment
+            left join fetch r.courses c
+            left join fetch c.course
+            where e.examType.id = :examTypeId and m.stage.cycle.status = :cycleStatus and r.attended = true
+            """)
+    List<ExamResult> findAttendedByExamTypeAndCycleStatus(@Param("examTypeId") Long examTypeId,
+            @Param("cycleStatus") CycleStatus cycleStatus);
 
     interface ExamScore {
 
