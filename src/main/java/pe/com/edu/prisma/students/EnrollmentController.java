@@ -14,6 +14,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import pe.com.edu.prisma.students.dto.BulkEnrollmentPreviewRequest;
+import pe.com.edu.prisma.students.dto.BulkEnrollmentPreviewRow;
+import pe.com.edu.prisma.students.dto.BulkEnrollmentRequest;
+import pe.com.edu.prisma.students.dto.BulkEnrollmentResultDto;
 import pe.com.edu.prisma.students.dto.CreateEnrollmentRequest;
 import pe.com.edu.prisma.students.dto.EnrollmentDto;
 import pe.com.edu.prisma.students.dto.UpdateEnrollmentRequest;
@@ -48,6 +52,19 @@ public class EnrollmentController {
     @PutMapping("/{id}")
     public EnrollmentDto update(@PathVariable Long id, @RequestBody UpdateEnrollmentRequest request) {
         return enrollmentService.update(id, request);
+    }
+
+    // mass enrollment (REQ-STUDENTS-05): only an admin moves a group to another stage
+    @PostMapping("/bulk-preview")
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<BulkEnrollmentPreviewRow> bulkPreview(@Valid @RequestBody BulkEnrollmentPreviewRequest request) {
+        return enrollmentService.bulkPreview(request);
+    }
+
+    @PostMapping("/bulk")
+    @PreAuthorize("hasRole('ADMIN')")
+    public BulkEnrollmentResultDto bulk(@Valid @RequestBody BulkEnrollmentRequest request) {
+        return enrollmentService.bulk(request);
     }
 
     // withdraw from the stage (soft): the enrollment stays as history
