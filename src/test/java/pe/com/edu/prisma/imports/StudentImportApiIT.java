@@ -302,13 +302,15 @@ class StudentImportApiIT {
                 row("Mateo", "Rojas"),
                 row("Valeria", "Díaz", "Soto", "70011223"));
         as("ADMIN", post(BATCHES + "/" + id(uploaded(first, stage)) + "/confirm")).andExpect(status().isOk());
-        long ana = jdbc.queryForObject("INSERT INTO app_user (email, first_name, last_name_pat) "
-                + "VALUES ('ana.soto@prueba.pe', 'Ana', 'Soto') RETURNING id", Long.class);
-        jdbc.update("INSERT INTO user_role (user_id, role_id) SELECT ?, id FROM role WHERE name = 'TUTOR'", ana);
+        // a name no other test gives a tutor: users created elsewhere are never deleted, and a
+        // first name shared by two active tutors matches none (the classes run in any order)
+        long rebeca = jdbc.queryForObject("INSERT INTO app_user (email, first_name, last_name_pat) "
+                + "VALUES ('rebeca.soto@prueba.pe', 'Rebeca', 'Soto') RETURNING id", Long.class);
+        jdbc.update("INSERT INTO user_role (user_id, role_id) SELECT ?, id FROM role WHERE name = 'TUTOR'", rebeca);
 
         // the same students, with data corrected or added: nobody needs a person
         String json = uploaded(xlsx(
-                row("LUCIA", "QUISPE", "MAMANI", "72345678", "lucia@correo.pe", "987654321", "17/05/2009", "Ciencias", "Ana"),
+                row("LUCIA", "QUISPE", "MAMANI", "72345678", "lucia@correo.pe", "987654321", "17/05/2009", "Ciencias", "Rebeca"),
                 row("mateo", "ROJAS", null, "70055667"),
                 row("Valeria", "Díaz", "Soto", "70011223", null, null, null, "Medicina", "Pedro")), stage);
         long batch = id(json);
@@ -333,15 +335,15 @@ class StudentImportApiIT {
             assertThat(count("SELECT career_id FROM student_stage WHERE student_id = ?", lucia))
                     .isEqualTo(count("SELECT id FROM career WHERE name = 'Ciencias'"));
             assertThat(count("SELECT tutor_id FROM tutor_assignment ta JOIN student_stage ss ON ss.id = ta.student_stage_id "
-                    + "WHERE ss.student_id = ? AND ta.valid_to IS NULL", lucia)).isEqualTo(ana);
+                    + "WHERE ss.student_id = ? AND ta.valid_to IS NULL", lucia)).isEqualTo(rebeca);
             assertThat(count("SELECT count(*) FROM tutor_assignment ta JOIN student_stage ss ON ss.id = ta.student_stage_id "
                     + "WHERE ss.student_id = ?", lucia)).isEqualTo(2);
             assertThat(output.getOut()).contains("Student import confirmed: batchId=" + batch
                     + " created=0 updated=3 enrolled=0 tutorsAssigned=1 rows=3");
         } finally {
             jdbc.update("DELETE FROM tutor_assignment");
-            jdbc.update("DELETE FROM user_role WHERE user_id = ?", ana);
-            jdbc.update("DELETE FROM app_user WHERE id = ?", ana);
+            jdbc.update("DELETE FROM user_role WHERE user_id = ?", rebeca);
+            jdbc.update("DELETE FROM app_user WHERE id = ?", rebeca);
         }
     }
 
