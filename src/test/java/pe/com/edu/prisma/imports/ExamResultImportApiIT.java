@@ -369,7 +369,7 @@ class ExamResultImportApiIT {
         as("COORDINADOR", get("/api/v1/mock-exams").param("stageId", String.valueOf(stage)))
                 .andExpect(jsonPath("$[0].exams[0].hasResults").value(true));
         assertThat(output.getAll()).contains("Exam results import confirmed: batchId=" + batch + " examId=" + letras
-                + " results=3 studentsCreated=1 enrolled=2 tutorsAssigned=3");
+                + " results=3 studentsCreated=1 enrolled=2 tutorsAssigned=3 replaced=0");
 
         // loaded once: never again, neither uploading nor confirming another batch
         upload("ADMIN", letras, letrasFile()).andExpect(status().isConflict())
@@ -556,5 +556,74 @@ class ExamResultImportApiIT {
         as("TUTOR", post(BATCHES + "/" + batch + "/discard")).andExpect(status().isNoContent());
         confirm("ADMIN", batch).andExpect(status().isConflict());
         upload("ADMIN", letras, letrasFile()).andExpect(status().isCreated());
+    }
+
+    private ResultActions reload(String role, long examId, byte[] file) throws Exception {
+        return as(role, multipart("/api/v1/exams/" + examId + "/results/import").file(new MockMultipartFile("file",
+                "GENERALES LETRAS.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", file))
+                .param("reload", "true"));
+    }
+
+    @Test
+    void anAdminReloadsAnExamAndConfirmingReplacesItsResults(CapturedOutput output) throws Exception {
+        enroll(mateo, stage, true);
+        confirm("ADMIN", id(uploaded("ADMIN", eva(LETRAS_TITLE, 5,
+                line("72345678", "QUISPE MAMANI LUCIA", counts(5, 4, 1, 0), 787.5, 819.4, 722.76),
+                line(null, "ROJAS MATEO", counts(5, 3, 2, 1), 740.9, 741.6, 673.0))))).andExpect(status().isOk());
+        // the corrected file: Lucía with other figures, Mateo no longer in it
+        byte[] corrected = eva(LETRAS_TITLE, 5,
+                line("72345678", "QUISPE MAMANI LUCIA", counts(5, 2, 3, 0), 600.5, 610.0, 564.2));
+
+        // loading again is only the admin's forced reload
+        upload("ADMIN", letras, corrected).andExpect(status().isConflict());
+        reload("TUTOR", letras, corrected).andExpect(status().isForbidden());
+        reload("COORDINADOR", letras, corrected).andExpect(status().isForbidden());
+        String json = reload("ADMIN", letras, corrected).andExpect(status().isCreated())
+                .andExpect(jsonPath("$.replacesResults").value(true))
+                .andExpect(jsonPath("$.rows[0].status").value("AUTO_MATCHED"))
+                .andReturn().getResponse().getContentAsString();
+        long batch = id(json);
+        // nothing changes until it is confirmed, and only an admin confirms it
+        assertThat(count("SELECT count(*) FROM exam_result WHERE exam_id = ?", letras)).isEqualTo(2);
+        confirm("TUTOR", batch).andExpect(status().isForbidden());
+        assertThat(count("SELECT count(*) FROM exam_result WHERE exam_id = ?", letras)).isEqualTo(2);
+
+        confirm("ADMIN", batch).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CONFIRMED"));
+
+        assertThat(count("SELECT count(*) FROM exam_result WHERE exam_id = ?", letras)).isEqualTo(1);
+        var saved = jdbc.queryForMap("SELECT r.total_correct, r.total_score FROM exam_result r "
+                + "JOIN student_stage s ON s.id = r.student_stage_id WHERE s.student_id = ?", lucia);
+        assertThat(saved).containsEntry("total_correct", 12);
+        assertThat((BigDecimal) saved.get("total_score")).isEqualByComparingTo("564.2");
+        // the old course and area rows went with their results
+        assertThat(count("SELECT count(*) FROM exam_course_result")).isEqualTo(6);
+        assertThat(count("SELECT count(*) FROM exam_area_result")).isEqualTo(2);
+        // Mateo keeps his enrollment: only his result in this exam is gone
+        assertThat(count("SELECT count(*) FROM student_stage WHERE student_id = ? AND active", mateo)).isEqualTo(1);
+        assertThat(output.getAll()).contains("results=1 studentsCreated=0 enrolled=0 tutorsAssigned=0 replaced=2");
+
+        // and it can be reloaded again
+        reload("ADMIN", letras, corrected).andExpect(status().isCreated());
+    }
+
+    @Test
+    void aReloadWithRowsToResolveKeepsTheCurrentResults() throws Exception {
+        confirm("ADMIN", id(uploaded("ADMIN", eva(LETRAS_TITLE, 5,
+                line("72345678", "QUISPE MAMANI LUCIA", counts(5, 4, 1, 0), 787.5, 819.4, 722.76))))).andExpect(status().isOk());
+        long batch = id(reload("ADMIN", letras, eva(LETRAS_TITLE, 5,
+                line("70000009", "ALUMNO DESCONOCIDO", counts(5, 1, 0, 0), 1, 1, 1)))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+
+        confirm("ADMIN", batch).andExpect(status().isConflict()); // a row is still unresolved
+        assertThat(count("SELECT count(*) FROM exam_result WHERE exam_id = ?", letras)).isEqualTo(1);
+    }
+
+    @Test
+    void reloadingAnExamWithoutResultsIsAPlainLoad() throws Exception {
+        String json = reload("ADMIN", letras, letrasFile()).andExpect(status().isCreated())
+                .andExpect(jsonPath("$.replacesResults").value(false))
+                .andReturn().getResponse().getContentAsString();
+        // a plain batch: whoever may confirm a load confirms it
+        as("TUTOR", post(BATCHES + "/" + id(json) + "/discard")).andExpect(status().isNoContent());
     }
 }

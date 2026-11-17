@@ -411,7 +411,7 @@ public class StudentImportServiceImpl implements StudentImportService {
         return new ImportBatchDto(batch.getId(), batch.getType(), batch.getStatus(), batch.getFileName(),
                 stage == null ? null : stage.getId(), stageLabel, null, null, batch.getUploadedAt(), rows.size(),
                 count(counts, ImportRowStatus.NEW_STUDENT), matched, count(counts, ImportRowStatus.UNRESOLVED),
-                count(counts, ImportRowStatus.IGNORED), 0, withRows ? rowsDto(rows) : List.of());
+                count(counts, ImportRowStatus.IGNORED), 0, false, withRows ? rowsDto(rows) : List.of());
     }
 
     private List<ImportRowDto> rowsDto(List<ImportRow> rows) {

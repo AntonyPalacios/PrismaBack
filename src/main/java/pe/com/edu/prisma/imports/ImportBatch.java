@@ -47,6 +47,10 @@ public class ImportBatch extends BaseEntity {
     @JoinColumn(name = "exam_id", updatable = false)
     private Exam exam;
 
+    // exam results batches: a forced reload, which replaces the exam's results on confirm (V14)
+    @Column(name = "replaces_results", nullable = false, updatable = false)
+    private boolean replacesResults;
+
     // exam results batches: rows of the file that were not students
     @Column(name = "skipped_rows", nullable = false, updatable = false)
     private int skippedRows;
