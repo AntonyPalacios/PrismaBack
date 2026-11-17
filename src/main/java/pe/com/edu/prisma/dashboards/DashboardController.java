@@ -7,6 +7,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import pe.com.edu.prisma.dashboards.dto.AreaDistributionDto;
+import pe.com.edu.prisma.dashboards.dto.CourseSeriesDto;
 import pe.com.edu.prisma.dashboards.dto.ScoreEvolutionPointDto;
 
 /**
@@ -28,5 +30,17 @@ public class DashboardController {
     public List<ScoreEvolutionPointDto> scoreEvolution(@PathVariable Long studentId,
             @RequestParam(defaultValue = "false") boolean includeAllCycles) {
         return dashboardService.scoreEvolution(studentId, includeAllCycles);
+    }
+
+    @GetMapping("/students/{studentId}/course-effectiveness")
+    public List<CourseSeriesDto> courseEffectiveness(@PathVariable Long studentId,
+            @RequestParam(defaultValue = "false") boolean includeAllCycles) {
+        return dashboardService.courseEffectiveness(studentId, includeAllCycles);
+    }
+
+    @GetMapping("/students/{studentId}/area-distribution")
+    public AreaDistributionDto areaDistribution(@PathVariable Long studentId,
+            @RequestParam(defaultValue = "false") boolean includeAllCycles) {
+        return dashboardService.areaDistribution(studentId, includeAllCycles);
     }
 }
