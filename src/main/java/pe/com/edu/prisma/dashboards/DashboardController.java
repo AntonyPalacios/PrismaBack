@@ -11,11 +11,13 @@ import pe.com.edu.prisma.dashboards.dto.AreaDistributionDto;
 import pe.com.edu.prisma.dashboards.dto.CourseSeriesDto;
 import pe.com.edu.prisma.dashboards.dto.GroupComparisonExamDto;
 import pe.com.edu.prisma.dashboards.dto.MathRadarDto;
+import pe.com.edu.prisma.dashboards.dto.TutorComparisonDto;
 import pe.com.edu.prisma.dashboards.dto.ScoreEvolutionPointDto;
 
 /**
  * Dashboards over the exam results (REQ-DASHBOARDS). ADMIN and TUTOR; a
- * tutor only for their current students (checked by the service).
+ * tutor only for their current students (checked by the service). The
+ * tutor comparison is only an admin's.
  */
 @RestController
 @RequestMapping("/api/v1/dashboards")
@@ -50,6 +52,13 @@ public class DashboardController {
     @GetMapping("/students/{studentId}/math-radar")
     public MathRadarDto mathRadar(@PathVariable Long studentId) {
         return dashboardService.mathRadar(studentId);
+    }
+
+    // only an admin: tutors never see how they compare (REQ-DASHBOARDS-06)
+    @GetMapping("/tutor-comparison")
+    @PreAuthorize("hasRole('ADMIN')")
+    public TutorComparisonDto tutorComparison(@RequestParam Long examTypeId) {
+        return dashboardService.tutorComparison(examTypeId);
     }
 
     // tutorId: only an admin, to see one tutor's group instead of the whole academy
