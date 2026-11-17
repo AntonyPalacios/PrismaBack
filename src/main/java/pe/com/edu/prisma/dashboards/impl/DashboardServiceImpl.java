@@ -5,6 +5,7 @@ import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -18,12 +19,14 @@ import pe.com.edu.prisma.academic.CycleStatus;
 import pe.com.edu.prisma.catalog.Area;
 import pe.com.edu.prisma.catalog.Course;
 import pe.com.edu.prisma.catalog.ExamTypeRepository;
+import pe.com.edu.prisma.common.SpanishOrder;
 import pe.com.edu.prisma.common.exception.ResourceNotFoundException;
 import pe.com.edu.prisma.dashboards.DashboardService;
 import pe.com.edu.prisma.dashboards.dto.AreaDistributionDto;
 import pe.com.edu.prisma.dashboards.dto.CourseSeriesDto;
 import pe.com.edu.prisma.dashboards.dto.GroupComparisonExamDto;
 import pe.com.edu.prisma.dashboards.dto.MathRadarDto;
+import pe.com.edu.prisma.dashboards.dto.TutorComparisonDto;
 import pe.com.edu.prisma.dashboards.dto.ScoreEvolutionPointDto;
 import pe.com.edu.prisma.dashboards.dto.ScoreEvolutionPointDto.AreaScoreDto;
 import pe.com.edu.prisma.exams.Exam;
@@ -44,6 +47,8 @@ public class DashboardServiceImpl implements DashboardService {
 
     // Matemática, fixed reference data seeded by V2 (areas never change)
     private static final Long MATH_AREA_ID = 2L;
+    // the tutor comparison looks at the last exams only (REQ-DASHBOARDS-06)
+    private static final int COMPARED_EXAMS = 3;
 
     static final String STUDENT_NOT_FOUND = "No encontramos el alumno solicitado.";
     static final String NOT_THEIR_TUTOR = "Solo el administrador o el tutor actual del alumno pueden ver su progreso.";
@@ -162,7 +167,6 @@ public class DashboardServiceImpl implements DashboardService {
                 .toList();
     }
 
-    /** One exam's figures over the results of the group (never empty). */
     @Override
     public MathRadarDto mathRadar(Long studentId) {
         List<ExamResult> results = resultsOf(studentId, false); // by exam date, oldest first
@@ -189,6 +193,60 @@ public class DashboardServiceImpl implements DashboardService {
                 result.getExam().getExamType().getName(), mockExam.getExamDate(), axes);
     }
 
+    @Override
+    public TutorComparisonDto tutorComparison(Long examTypeId) {
+        if (!examTypeRepository.existsById(examTypeId)) {
+            throw new ResourceNotFoundException(EXAM_TYPE_NOT_FOUND);
+        }
+        Map<Long, List<ExamResult>> byExam = resultRepository
+                .findAttendedByExamTypeAndCycleStatus(examTypeId, CycleStatus.ACTIVE).stream()
+                .collect(Collectors.groupingBy(result -> result.getExam().getId()));
+        // the last 3 exams of the type that have results, oldest first
+        List<List<ExamResult>> exams = byExam.values().stream()
+                .sorted(Comparator.comparing((List<ExamResult> results) -> results.get(0).getExam().getMockExam().getExamDate())
+                        .thenComparing(results -> results.get(0).getExam().getId()))
+                .toList();
+        exams = exams.subList(Math.max(0, exams.size() - COMPARED_EXAMS), exams.size());
+
+        // a tutor's group: the students assigned to them today (as in the charla de notas)
+        Map<Long, CurrentEnrollments.Current> current = currentEnrollments.byStudent();
+        Map<Long, String> tutorNames = new HashMap<>();
+        Map<Long, List<TutorComparisonDto.Cell>> tutorCells = new HashMap<>();
+        List<TutorComparisonDto.Cell> academy = new ArrayList<>();
+        for (List<ExamResult> results : exams) {
+            academy.add(toCell(results));
+            Map<Long, List<ExamResult>> byTutor = new HashMap<>();
+            for (ExamResult result : results) {
+                CurrentEnrollments.Current now = current.get(result.getEnrollment().getStudent().getId());
+                if (now != null && now.tutorId() != null) {
+                    tutorNames.putIfAbsent(now.tutorId(), now.tutorName());
+                    byTutor.computeIfAbsent(now.tutorId(), id -> new ArrayList<>()).add(result);
+                }
+            }
+            byTutor.forEach((tutorId, group) -> tutorCells.computeIfAbsent(tutorId, id -> new ArrayList<>()).add(toCell(group)));
+        }
+        List<TutorComparisonDto.TutorRow> tutors = tutorCells.entrySet().stream()
+                .map(entry -> new TutorComparisonDto.TutorRow(entry.getKey(), tutorNames.get(entry.getKey()), entry.getValue()))
+                .sorted(SpanishOrder.<TutorComparisonDto.TutorRow>by(TutorComparisonDto.TutorRow::tutorName)
+                        .thenComparing(TutorComparisonDto.TutorRow::tutorId))
+                .toList();
+        List<TutorComparisonDto.Exam> columns = exams.stream().map(results -> results.get(0).getExam())
+                .map(exam -> new TutorComparisonDto.Exam(exam.getId(), exam.getMockExam().getName(),
+                        exam.getMockExam().getExamDate()))
+                .toList();
+        return new TutorComparisonDto(columns, tutors, academy);
+    }
+
+    // the same averages as the charla de notas, over one group's results of one exam
+    private static TutorComparisonDto.Cell toCell(List<ExamResult> results) {
+        GroupComparisonExamDto figures = toGroupExam(results);
+        return new TutorComparisonDto.Cell(figures.examId(), figures.students(), figures.areas().stream()
+                .map(area -> new TutorComparisonDto.AreaAverage(area.areaId(), area.areaName(), area.correctAvg(),
+                        area.wrongAvg()))
+                .toList());
+    }
+
+    /** One exam's figures over the results of the group (never empty). */
     private static GroupComparisonExamDto toGroupExam(List<ExamResult> results) {
         MockExam mockExam = results.get(0).getExam().getMockExam();
         Map<Long, Area> areas = new TreeMap<>();

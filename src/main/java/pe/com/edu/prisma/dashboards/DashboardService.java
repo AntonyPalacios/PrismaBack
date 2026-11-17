@@ -5,6 +5,7 @@ import pe.com.edu.prisma.dashboards.dto.AreaDistributionDto;
 import pe.com.edu.prisma.dashboards.dto.CourseSeriesDto;
 import pe.com.edu.prisma.dashboards.dto.GroupComparisonExamDto;
 import pe.com.edu.prisma.dashboards.dto.MathRadarDto;
+import pe.com.edu.prisma.dashboards.dto.TutorComparisonDto;
 import pe.com.edu.prisma.dashboards.dto.ScoreEvolutionPointDto;
 
 /** What the stored exam results say, ready to chart (REQ-DASHBOARDS). */
@@ -37,4 +38,11 @@ public interface DashboardService {
      * one tutor's group with {@code tutorId} (403 if a tutor sends it).
      */
     List<GroupComparisonExamDto> groupComparison(Long examTypeId, Long tutorId);
+
+    /**
+     * The tutor comparison (REQ-DASHBOARDS-06): the last 3 exams of that type
+     * with results in the active cycle, each tutor's current group and the
+     * whole academy, with the average correct and wrong answers per area.
+     */
+    TutorComparisonDto tutorComparison(Long examTypeId);
 }
