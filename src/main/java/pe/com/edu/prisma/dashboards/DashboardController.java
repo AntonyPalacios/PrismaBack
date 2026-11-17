@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 import pe.com.edu.prisma.dashboards.dto.AreaDistributionDto;
 import pe.com.edu.prisma.dashboards.dto.CourseSeriesDto;
 import pe.com.edu.prisma.dashboards.dto.GroupComparisonExamDto;
+import pe.com.edu.prisma.dashboards.dto.MathRadarDto;
 import pe.com.edu.prisma.dashboards.dto.ScoreEvolutionPointDto;
 
 /**
@@ -43,6 +44,12 @@ public class DashboardController {
     public AreaDistributionDto areaDistribution(@PathVariable Long studentId,
             @RequestParam(defaultValue = "false") boolean includeAllCycles) {
         return dashboardService.areaDistribution(studentId, includeAllCycles);
+    }
+
+    // always the active cycle: the latest exam the student sat and the one before it
+    @GetMapping("/students/{studentId}/math-radar")
+    public MathRadarDto mathRadar(@PathVariable Long studentId) {
+        return dashboardService.mathRadar(studentId);
     }
 
     // tutorId: only an admin, to see one tutor's group instead of the whole academy
