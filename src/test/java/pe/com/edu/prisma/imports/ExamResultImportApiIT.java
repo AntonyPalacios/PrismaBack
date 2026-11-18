@@ -453,28 +453,78 @@ class ExamResultImportApiIT {
         assertThat(count("SELECT count(*) FROM student WHERE last_name_pat = 'Pérez' AND dni IS NULL")).isEqualTo(1);
     }
 
-    @Test
-    void aStudentWithAResultInAnotherTypeOfTheMockExamIsReviewed() throws Exception {
+    /** Lucía's result in the Ciencias exam of the same mock exam; returns that exam. */
+    private long cienciasResult(boolean attended, int score) {
         long mockExam = jdbc.queryForObject("SELECT mock_exam_id FROM exam WHERE id = ?", Long.class, letras);
         long ciencias = exam(mockExam, CIENCIAS);
         long enrollment = jdbc.queryForObject("SELECT id FROM student_stage WHERE student_id = ?", Long.class, lucia);
-        jdbc.update("INSERT INTO exam_result (exam_id, student_stage_id, total_score, attended) VALUES (?, ?, 500, true)",
-                ciencias, enrollment);
+        jdbc.update("INSERT INTO exam_result (exam_id, student_stage_id, total_score, attended) VALUES (?, ?, ?, ?)",
+                ciencias, enrollment, score, attended);
+        return ciencias;
+    }
 
-        String json = uploaded("ADMIN", eva(LETRAS_TITLE, 5, line("72345678", "QUISPE MAMANI LUCIA", counts(5, 1, 0, 0), 1, 1, 1)));
+    @Test
+    void anAttendedResultReplacesADidNotAttendOfAnotherTypeByItself() throws Exception {
+        long ciencias = cienciasResult(false, 80);
+        String json = uploaded("ADMIN", eva(LETRAS_TITLE, 5, line("72345678", "QUISPE MAMANI LUCIA", counts(5, 1, 0, 0), 1, 1, 610.2)));
+        assertThat(JsonPath.<String>read(json, "$.rows[0].status")).isEqualTo("AUTO_MATCHED");
+        assertThat(JsonPath.<Boolean>read(json, "$.rows[0].replacesOther")).isTrue();
+        assertThat(JsonPath.<String>read(json, "$.rows[0].notice"))
+                .isEqualTo("Reemplaza su resultado de Ciencias de este simulacro (no asistió): se queda este (610.2).");
+        confirm("ADMIN", id(json)).andExpect(status().isOk());
+        assertThat(count("SELECT count(*) FROM exam_result WHERE exam_id = ?", ciencias)).isZero();
+        assertThat(count("SELECT count(*) FROM exam_result WHERE exam_id = ?", letras)).isEqualTo(1);
+    }
+
+    @Test
+    void aWorseResultIsIgnoredByItselfAndTheBetterOneStays() throws Exception {
+        long ciencias = cienciasResult(true, 500);
+        // a lower score, and a "no asistió": both lose against Ciencias
+        String json = uploaded("ADMIN", eva(LETRAS_TITLE, 5, line("72345678", "QUISPE MAMANI LUCIA", counts(5, 1, 0, 0), 1, 1, 420.5)));
+        assertThat(JsonPath.<String>read(json, "$.rows[0].status")).isEqualTo("IGNORED");
+        assertThat(JsonPath.<String>read(json, "$.rows[0].notice"))
+                .isEqualTo("Ya tiene un mejor resultado en Ciencias de este simulacro (500): se ignora esta fila (420.5).");
         long batch = id(json);
-        assertThat(JsonPath.<String>read(json, "$.rows[0].status")).isEqualTo("UNRESOLVED");
-        assertThat(JsonPath.<String>read(json, "$.rows[0].otherExamTypeName")).isEqualTo("Ciencias");
-        assertThat(JsonPath.<String>read(json, "$.rows[0].notice")).contains("Ya tiene resultado en Ciencias");
 
+        // chosen by hand it asks, with both results; the person may still keep this one
         String match = "{\"action\":\"MATCH\",\"studentId\":" + lucia;
-        resolve("ADMIN", batch, rowId(json, 12), match + "}").andExpect(status().isConflict());
+        resolve("ADMIN", batch, rowId(json, 12), match + "}")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.requiresConfirmation").value(true))
+                .andExpect(jsonPath("$.otherExamTypeName").value("Ciencias"))
+                .andExpect(jsonPath("$.otherResult").value("500"))
+                .andExpect(jsonPath("$.thisResult").value("420.5"));
         resolve("ADMIN", batch, rowId(json, 12), match + ",\"replaceOther\":true}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.rows[0].replacesOther").value(true));
         confirm("ADMIN", batch).andExpect(status().isOk());
         assertThat(count("SELECT count(*) FROM exam_result WHERE exam_id = ?", ciencias)).isZero();
-        assertThat(count("SELECT count(*) FROM exam_result WHERE exam_id = ?", letras)).isEqualTo(1);
+    }
+
+    @Test
+    void aStudentChosenByHandWithABetterResultReplacesTheOtherType() throws Exception {
+        long ciencias = cienciasResult(true, 500);
+        // the name is not exact: the upload does not match her, the person does
+        String json = uploaded("ADMIN", eva(LETRAS_TITLE, 5, line(null, "QUISPE MAMANI LUCI", counts(5, 1, 0, 0), 1, 1, 650)));
+        assertThat(JsonPath.<String>read(json, "$.rows[0].status")).isEqualTo("UNRESOLVED");
+        resolve("ADMIN", id(json), rowId(json, 12), "{\"action\":\"MATCH\",\"studentId\":" + lucia + "}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rows[0].replacesOther").value(true))
+                .andExpect(jsonPath("$.rows[0].notice").value(containsString("se queda este (650)")));
+        confirm("ADMIN", id(json)).andExpect(status().isOk());
+        assertThat(count("SELECT count(*) FROM exam_result WHERE exam_id = ?", ciencias)).isZero();
+    }
+
+    @Test
+    void aResultOfTheOtherTypeConfirmedMeanwhileIsSettledByTheRule() throws Exception {
+        String json = uploaded("ADMIN", eva(LETRAS_TITLE, 5, line("72345678", "QUISPE MAMANI LUCIA", counts(5, 1, 0, 0), 1, 1, 300)));
+        assertThat(JsonPath.<String>read(json, "$.rows[0].status")).isEqualTo("AUTO_MATCHED");
+        // the Ciencias file was confirmed in between, with a better score
+        long ciencias = cienciasResult(true, 700);
+        confirm("ADMIN", id(json)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.rows[0].status").value("IGNORED"));
+        assertThat(count("SELECT count(*) FROM exam_result WHERE exam_id = ?", ciencias)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM exam_result WHERE exam_id = ?", letras)).isZero();
     }
 
     @Test
