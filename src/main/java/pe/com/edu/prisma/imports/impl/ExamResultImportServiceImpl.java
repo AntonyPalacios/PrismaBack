@@ -6,6 +6,7 @@ import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.Comparator;
@@ -104,9 +105,9 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
     static final String DNI_REPEATED_IN_FILE = "El DNI del archivo se repite en otras filas: se ignoró.";
     static final String DNI_NOT_MATCHING = "El DNI del archivo no coincide con el registrado: se mantiene el registrado.";
     static final String NEW_WITHOUT_DNI = "Ese DNI ya es de otro alumno: se registrará sin DNI.";
-    static final String OTHER_TYPE = "Ya tiene resultado en %s de este simulacro: ignora la fila o reemplaza ese resultado.";
-    static final String REPLACES_OTHER = "Al confirmar se borrará su resultado de %s de este simulacro.";
-    static final String OTHER_TYPE_ROW = "Fila %d: ya tiene resultado en %s de este simulacro.";
+    static final String OTHER_TYPE = "Ya tiene un mejor resultado en %s de este simulacro (%s): ¿con cuál se queda?";
+    static final String REPLACES_OTHER = "Reemplaza su resultado de %s de este simulacro (%s): se queda este (%s).";
+    static final String KEEPS_OTHER = "Ya tiene un mejor resultado en %s de este simulacro (%s): se ignora esta fila (%s).";
 
     // how alike two full names must be to suggest "this may be the same person"
     private static final double SIMILAR_NAME = 0.92;
@@ -274,16 +275,24 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
                 if (standing.blocker() != null) {
                     throw new BusinessRuleException(standing.blocker());
                 }
-                // a student sits one type per mock exam: replacing the other result is a person's decision
+                // one type per mock exam: this row replaces the other result when it is better (or when the
+                // person says so); when it would lose, the person chooses which one stays
                 Optional<ExamResult> other = otherTypeResult(batch.getExam(), student.getId());
-                boolean replace = Boolean.TRUE.equals(request.replaceOther());
-                if (other.isPresent() && !replace) {
-                    throw new BusinessRuleException(OTHER_TYPE.formatted(other.get().getExam().getExamType().getName()));
+                if (other.isPresent() && !Boolean.TRUE.equals(request.replaceOther())
+                        && !keepsThis(other.get(), payload.attended(), payload.totalScore())) {
+                    ExamResult o = other.get();
+                    Map<String, Object> both = new HashMap<>();
+                    both.put("otherExamTypeName", o.getExam().getExamType().getName());
+                    both.put("otherResult", describe(o.isAttended(), o.getTotalScore()));
+                    both.put("thisResult", describe(payload.attended(), payload.totalScore()));
+                    throw new ConfirmationRequiredException(OTHER_TYPE.formatted(o.getExam().getExamType().getName(),
+                            describe(o.isAttended(), o.getTotalScore())), both);
                 }
                 row.setMatchedStudent(student);
                 row.setStatus(ImportRowStatus.MANUAL_MATCHED);
                 ResultRowPayload reviewed = payload.withReview(standing.enrolls(), null, other
-                        .map(o -> REPLACES_OTHER.formatted(o.getExam().getExamType().getName()))
+                        .map(o -> REPLACES_OTHER.formatted(o.getExam().getExamType().getName(),
+                                describe(o.isAttended(), o.getTotalScore()), describe(payload.attended(), payload.totalScore())))
                         .orElse(standing.notice()));
                 row.setRawPayload(json(other
                         .map(o -> reviewed.withOther(o.getExam().getId(), o.getExam().getExamType().getName(), true))
@@ -335,27 +344,33 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
                 .toList();
         rejectSameStudentTwice(rows);
 
-        // a student sits one type per mock exam: whoever got a result in another type meanwhile stops the batch,
-        // unless a person chose to replace it
+        // one type per mock exam: a result in another type (even one confirmed meanwhile) is settled by the rule,
+        // or as the person chose
         Map<Long, ExamResult> otherResults = resultRepository
                 .findInOtherExamsOfMockExam(exam.getMockExam().getId(), exam.getId()).stream()
                 .collect(Collectors.toMap(r -> r.getEnrollment().getStudent().getId(), Function.identity(), (a, b) -> a));
         int replacedOther = 0;
+        List<ImportRow> kept = new ArrayList<>();
         for (ImportRow row : rows) {
-            if (row.getMatchedStudent() == null) {
-                continue;
-            }
-            ExamResult other = otherResults.get(row.getMatchedStudent().getId());
+            ExamResult other = row.getMatchedStudent() == null ? null : otherResults.get(row.getMatchedStudent().getId());
             if (other == null) {
+                kept.add(row);
                 continue;
             }
-            if (!payload(row).replacesOther()) {
-                throw new BusinessRuleException(OTHER_TYPE_ROW.formatted(row.getRowNumber(),
-                        other.getExam().getExamType().getName()));
+            ResultRowPayload payload = payload(row);
+            if (payload.replacesOther() || keepsThis(other, payload.attended(), payload.totalScore())) {
+                resultRepository.delete(other);
+                replacedOther++;
+                kept.add(row);
+            } else {
+                row.setStatus(ImportRowStatus.IGNORED);
+                row.setRawPayload(json(payload.withReview(payload.enrolls(), payload.newStudent(),
+                        KEEPS_OTHER.formatted(other.getExam().getExamType().getName(),
+                                describe(other.isAttended(), other.getTotalScore()),
+                                describe(payload.attended(), payload.totalScore())))));
             }
-            resultRepository.delete(other);
-            replacedOther++;
         }
+        rows = kept;
         if (replacedOther > 0) {
             resultRepository.flush();
         }
@@ -482,6 +497,32 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
         return userRepository.findById(userId).filter(User::isActive).filter(ImportNames::isTutor).isPresent();
     }
 
+    /**
+     * Which result stays when a student has one in another type of the mock
+     * exam (agreements of 2026-11-18): the attended one over "no asistió";
+     * if both attended, the higher total score; otherwise (neither attended,
+     * or a tie) the one already there.
+     */
+    private static boolean keepsThis(ExamResult other, boolean attended, BigDecimal totalScore) {
+        if (attended != other.isAttended()) {
+            return attended;
+        }
+        if (!attended) {
+            return false;
+        }
+        BigDecimal mine = totalScore == null ? BigDecimal.ZERO : totalScore;
+        BigDecimal theirs = other.getTotalScore() == null ? BigDecimal.ZERO : other.getTotalScore();
+        return mine.compareTo(theirs) > 0;
+    }
+
+    /** "no asistió" or the total score: "610.2". */
+    private static String describe(boolean attended, BigDecimal totalScore) {
+        if (!attended) {
+            return "no asistió";
+        }
+        return totalScore == null ? "sin puntaje" : totalScore.stripTrailingZeros().toPlainString();
+    }
+
     /** The student's result in another type (exam) of the same mock exam, if any. */
     private Optional<ExamResult> otherTypeResult(Exam exam, Long studentId) {
         return resultRepository.findInOtherExamsOfMockExam(exam.getMockExam().getId(), exam.getId()).stream()
@@ -572,6 +613,7 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
             boolean enrolls = false;
             Long otherExamId = null;
             String otherTypeName = null;
+            boolean replacesOther = false;
             if (same != null) {
                 Standing standing = standing(same, stage, career);
                 ExamResult other = otherTypes.get(same.getId());
@@ -581,10 +623,19 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
                     row.setStatus(ImportRowStatus.UNRESOLVED);
                     notes.add(standing.blocker());
                 } else if (other != null) {
-                    row.setStatus(ImportRowStatus.UNRESOLVED);
+                    // one type per mock exam: the better result stays by itself
                     otherExamId = other.getExam().getId();
                     otherTypeName = other.getExam().getExamType().getName();
-                    notes.add(OTHER_TYPE.formatted(otherTypeName));
+                    if (keepsThis(other, parsed.attended(), parsed.totalScore())) {
+                        row.setStatus(ImportRowStatus.AUTO_MATCHED);
+                        replacesOther = true;
+                        notes.add(REPLACES_OTHER.formatted(otherTypeName, describe(other.isAttended(), other.getTotalScore()),
+                                describe(parsed.attended(), parsed.totalScore())));
+                    } else {
+                        row.setStatus(ImportRowStatus.IGNORED);
+                        notes.add(KEEPS_OTHER.formatted(otherTypeName, describe(other.isAttended(), other.getTotalScore()),
+                                describe(parsed.attended(), parsed.totalScore())));
+                    }
                 } else {
                     row.setStatus(ImportRowStatus.AUTO_MATCHED);
                     if (standing.notice() != null) {
@@ -598,7 +649,7 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
             row.setRawPayload(json(new ResultRowPayload(parsed.fullName(), parsed.dni(), parsed.attended(),
                     parsed.courses(), parsed.areas(), parsed.totalScore(), parsed.tutorText(),
                     ImportNames.matchTutor(tutors, parsed.tutorText()), enrolls, null,
-                    notes.isEmpty() ? null : String.join(" ", notes), otherExamId, otherTypeName, false)));
+                    notes.isEmpty() ? null : String.join(" ", notes), otherExamId, otherTypeName, replacesOther)));
             return row;
         }
 
