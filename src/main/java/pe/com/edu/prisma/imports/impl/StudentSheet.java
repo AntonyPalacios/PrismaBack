@@ -178,13 +178,9 @@ public class StudentSheet {
         return value.isEmpty() ? null : value;
     }
 
-    /**
-     * "61180218.0", " 6118 0218 " → "61180218"; letters stay (a foreigner's card).
-     * Only zeros ("0", a placeholder while the DNI is unknown) is no DNI.
-     */
+    /** The DNI cell, read as both imports do ({@link ImportDni}): fewer than 7 digits is no DNI. */
     private String dni(Cell cell) {
-        String value = formatter.formatCellValue(cell).replaceAll("\\s", "").replaceAll("\\.0+$", "");
-        return value.isEmpty() || value.matches("0+") ? null : value;
+        return ImportDni.normalize(formatter.formatCellValue(cell));
     }
 
     /** A real date cell, or text such as 17/05/2009 or 2009-05-17. */

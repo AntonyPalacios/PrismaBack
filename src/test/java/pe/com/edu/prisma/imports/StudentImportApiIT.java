@@ -192,6 +192,15 @@ class StudentImportApiIT {
     }
 
     @Test
+    void anIdentificationHasAtLeastSevenDigits() throws Exception {
+        // a short number is no DNI (it used to reject the whole file); seven digits get their leading zero back
+        long batch = id(uploaded(xlsx(row("Mateo", "Rojas", null, "11"), row("Dario", "Torres", null, "6184164")), null));
+        as("ADMIN", post(BATCHES + "/" + batch + "/confirm")).andExpect(status().isOk());
+        assertThat(count("SELECT count(*) FROM student WHERE last_name_pat = 'Rojas' AND dni IS NULL")).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM student WHERE last_name_pat = 'Torres' AND dni = '06184164'")).isEqualTo(1);
+    }
+
+    @Test
     void uploadingReadsEveryRowAndWritesNothingReal(CapturedOutput output) throws Exception {
         String json = uploaded(xlsx(
                 row("Valeria", "Díaz", "Soto", "70011223", "valeria@correo.pe", "987654321", "17/05/2009", "letras", "SILVIA"),
