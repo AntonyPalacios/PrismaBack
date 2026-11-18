@@ -396,6 +396,16 @@ class ExamResultImportApiIT {
     }
 
     @Test
+    void aDniOfZerosIsNoDni() throws Exception {
+        // the academy writes 0 while it lacks a student's DNI: never a repeated DNI
+        String json = uploaded("ADMIN", eva(LETRAS_TITLE, 5,
+                line(0.0, "ROJAS MATEO", counts(5, 1, 0, 0), 1, 1, 1),
+                line("0", "TORRES DARIO", counts(5, 1, 0, 0), 1, 1, 1),
+                line("00000000", "PAREDES SOFIA", counts(5, 1, 0, 0), 1, 1, 1)));
+        assertThat(JsonPath.<List<Object>>read(json, "$.rows")).hasSize(3);
+    }
+
+    @Test
     void theWrongFileIsRejectedWholeCitingRowsNeverData() throws Exception {
         // the title names another exam type
         upload("ADMIN", letras, eva("ÁREA: CIENCIAS - BIOMÉDICA", 5, line(null, "ROJAS MATEO", counts(5, 1, 0, 0), 1, 1, 1)))

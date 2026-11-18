@@ -236,7 +236,10 @@ public class ResultSheet {
         return name != null && HAS_LETTER.matcher(name).find() ? name : null;
     }
 
-    /** "61180218.0", " 6118 0218 " → "61180218"; a number that lost its leading zero gets it back. */
+    /**
+     * "61180218.0", " 6118 0218 " → "61180218"; a number that lost its leading zero gets it back.
+     * Only zeros ("0", the academy's placeholder while it lacks the DNI) is no DNI.
+     */
     private static String dni(Cell cell) {
         String value = switch (type(cell)) {
             case NUMERIC -> {
@@ -247,7 +250,7 @@ public class ResultSheet {
             default -> "";
         };
         value = value.toUpperCase(java.util.Locale.ROOT);
-        return VALID_DNI.matcher(value).matches() ? value : null;
+        return VALID_DNI.matcher(value).matches() && !value.matches("0+") ? value : null;
     }
 
     private static int count(Row row, int column) {

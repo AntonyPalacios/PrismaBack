@@ -184,6 +184,14 @@ class StudentImportApiIT {
     }
 
     @Test
+    void aDniOfZerosIsNoDni() throws Exception {
+        // a placeholder while the DNI is unknown: never a repeated DNI, never stored
+        long batch = id(uploaded(xlsx(row("Mateo", "Rojas", null, "0"), row("Dario", "Torres", null, "00000000")), null));
+        as("ADMIN", post(BATCHES + "/" + batch + "/confirm")).andExpect(status().isOk());
+        assertThat(count("SELECT count(*) FROM student WHERE last_name_pat IN ('Rojas', 'Torres') AND dni IS NULL")).isEqualTo(2);
+    }
+
+    @Test
     void uploadingReadsEveryRowAndWritesNothingReal(CapturedOutput output) throws Exception {
         String json = uploaded(xlsx(
                 row("Valeria", "Díaz", "Soto", "70011223", "valeria@correo.pe", "987654321", "17/05/2009", "letras", "SILVIA"),
