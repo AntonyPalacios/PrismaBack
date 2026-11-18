@@ -160,6 +160,21 @@ class StudentsByTutorApiIT {
     }
 
     @Test
+    void everyStudentCarriesTheCareerOfTheirCurrentEnrollmentAndItsExamType() throws Exception {
+        // Biomédica counts as Ciencias: the group is the career's exam type
+        jdbc.update("UPDATE student_stage SET career_id = (SELECT id FROM career WHERE name = 'Biomédica') "
+                + "WHERE student_id = ? AND active", lucia);
+        long ciencias = jdbc.queryForObject("SELECT id FROM exam_type WHERE name = 'Ciencias'", Long.class);
+        asAdmin(get("/api/v1/students"))
+                .andExpect(jsonPath("$[?(@.firstName == 'Lucía')].careerName").value("Biomédica"))
+                .andExpect(jsonPath("$[?(@.firstName == 'Lucía')].examTypeId").value((int) ciencias))
+                .andExpect(jsonPath("$[?(@.firstName == 'Lucía')].examTypeName").value("Ciencias"))
+                // enrolled without a career, or without a current enrollment
+                .andExpect(jsonPath("$[?(@.firstName == 'Valeria')].careerName").value(org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.nullValue())))
+                .andExpect(jsonPath("$[?(@.firstName == 'Ana')].examTypeId").value(org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.nullValue())));
+    }
+
+    @Test
     void withoutAnActiveCycleNobodyHasATutor() throws Exception {
         jdbc.update("UPDATE stage SET status = 'CLOSED'");
         jdbc.update("UPDATE cycle SET status = 'CLOSED'");
