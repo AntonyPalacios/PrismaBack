@@ -249,21 +249,15 @@ public class ResultSheet {
         return name != null && HAS_LETTER.matcher(name).find() ? name : null;
     }
 
-    /**
-     * "61180218.0", " 6118 0218 " → "61180218"; a number that lost its leading zero gets it back.
-     * Only zeros ("0", the academy's placeholder while it lacks the DNI) is no DNI.
-     */
+    /** The DNI cell, read as both imports do ({@link ImportDni}); null when it is not a valid one. */
     private static String dni(Cell cell) {
-        String value = switch (type(cell)) {
-            case NUMERIC -> {
-                String digits = BigDecimal.valueOf(cell.getNumericCellValue()).toBigInteger().toString();
-                yield digits.length() < 8 ? "0".repeat(8 - digits.length()) + digits : digits;
-            }
-            case STRING -> cell.getStringCellValue().replaceAll("\\s", "").replaceAll("\\.0+$", "");
-            default -> "";
+        String raw = switch (type(cell)) {
+            case NUMERIC -> BigDecimal.valueOf(cell.getNumericCellValue()).toBigInteger().toString();
+            case STRING -> cell.getStringCellValue();
+            default -> null;
         };
-        value = value.toUpperCase(java.util.Locale.ROOT);
-        return VALID_DNI.matcher(value).matches() && !value.matches("0+") ? value : null;
+        String value = ImportDni.normalize(raw);
+        return value != null && VALID_DNI.matcher(value).matches() ? value : null;
     }
 
     private static int count(Row row, int column) {

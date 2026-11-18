@@ -547,6 +547,15 @@ class ExamResultImportApiIT {
     }
 
     @Test
+    void anIdentificationHasAtLeastSevenDigits() throws Exception {
+        String json = uploaded("ADMIN", eva(LETRAS_TITLE, 5,
+                line(11.0, "ROJAS MATEO", counts(5, 1, 0, 0), 1, 1, 1),            // never a DNI: not padded to 00000011
+                line(6184164.0, "TORRES DARIO", counts(5, 1, 0, 0), 1, 1, 1),      // Excel dropped its leading zero
+                line("00000011", "PAREDES SOFIA", counts(5, 1, 0, 0), 1, 1, 1)));
+        assertThat(JsonPath.<List<Object>>read(json, "$.rows[*].dni")).containsExactly(null, "06184164", null);
+    }
+
+    @Test
     void theWrongFileIsRejectedWholeCitingRowsNeverData() throws Exception {
         // the title names another exam type
         upload("ADMIN", letras, eva("ÁREA: CIENCIAS - BIOMÉDICA", 5, line(null, "ROJAS MATEO", counts(5, 1, 0, 0), 1, 1, 1)))
