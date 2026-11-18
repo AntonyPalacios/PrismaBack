@@ -192,12 +192,18 @@ public class StageServiceImpl implements StageService {
     }
 
     /**
-     * The stage in force: the one containing today; if none does, the one
-     * that started most recently — whatever its status or the cycle's.
-     * Stages never overlap, so both cases are the same stage: the latest one
-     * that has already started. None if no stage has started yet.
+     * The stage in force (agreements of 2026-11-18): the cycle's ACTIVE stage
+     * (there is at most one), whatever its dates. Without one, by dates: the
+     * stage containing today; if none does, the one that started most
+     * recently, whatever its status. Stages never overlap, so both date cases
+     * are the same stage: the latest one that has already started. None if
+     * no stage is active and none has started yet.
      */
     private Long currentStageId(List<Stage> stagesByStartDate) {
+        Optional<Stage> active = stagesByStartDate.stream().filter(stage -> stage.getStatus() == StageStatus.ACTIVE).findFirst();
+        if (active.isPresent()) {
+            return active.get().getId();
+        }
         LocalDate today = LocalDate.now(clock);
         Long currentId = null;
         for (Stage stage : stagesByStartDate) {
