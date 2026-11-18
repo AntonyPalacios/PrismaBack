@@ -30,8 +30,9 @@ public class ExamResultImportController {
 
     @PostMapping(path = "/api/v1/exams/{examId}/results/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ImportBatchDto> upload(@PathVariable Long examId, @RequestPart("file") MultipartFile file,
-            @RequestParam(defaultValue = "false") boolean reload) {
-        ImportBatchDto batch = importService.upload(examId, file, reload);
+            @RequestParam(defaultValue = "false") boolean reload,
+            @RequestParam(defaultValue = "false") boolean replacePending) {
+        ImportBatchDto batch = importService.upload(examId, file, reload, replacePending);
         return ResponseEntity.created(URI.create("/api/v1/import-batches/" + batch.id())).body(batch);
     }
 }

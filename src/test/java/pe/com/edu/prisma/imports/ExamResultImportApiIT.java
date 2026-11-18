@@ -377,13 +377,104 @@ class ExamResultImportApiIT {
     }
 
     @Test
-    void anotherBatchOfTheSameExamCannotBeConfirmedOnceItHasResults() throws Exception {
+    void aSecondUploadOfAnExamInReviewAsksFirstAndCanReplaceIt() throws Exception {
         byte[] file = eva(LETRAS_TITLE, 5, line("72345678", "QUISPE MAMANI LUCIA", counts(5, 1, 0, 0), 1, 1, 1));
         long first = id(uploaded("ADMIN", file));
-        long second = id(uploaded("ADMIN", file));
-        confirm("ADMIN", first).andExpect(status().isOk());
-        confirm("ADMIN", second).andExpect(status().isConflict());
+
+        // the exam shows its import in review
+        as("TUTOR", get("/api/v1/mock-exams").param("stageId", String.valueOf(stage)))
+                .andExpect(jsonPath("$[0].exams[0].pendingImportBatchId").value(first));
+        upload("ADMIN", letras, file)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.requiresConfirmation").value(true))
+                .andExpect(jsonPath("$.pendingBatchId").value(first))
+                .andExpect(jsonPath("$.pendingFileName").value("GENERALES LETRAS.xlsx"));
+        assertThat(count("SELECT count(*) FROM import_batch")).isEqualTo(1);
+
+        // discarding it and uploading the new one, at once
+        long second = id(as("ADMIN", multipart("/api/v1/exams/" + letras + "/results/import")
+                .file(new MockMultipartFile("file", "GENERALES LETRAS 2.xlsx",
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", file))
+                .param("replacePending", "true"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+        as("ADMIN", get(BATCHES + "/" + first)).andExpect(jsonPath("$.status").value("DISCARDED"));
+        confirm("ADMIN", second).andExpect(status().isOk());
         assertThat(count("SELECT count(*) FROM exam_result")).isEqualTo(1);
+    }
+
+    @Test
+    void theNameDecidesAndAWrongDniIsNotTrusted() throws Exception {
+        String json = uploaded("ADMIN", eva(LETRAS_TITLE, 5,
+                // Lucía's DNI under Mateo's exact name: Mateo, never Lucía
+                line("72345678", "ROJAS MATEO", counts(5, 1, 0, 0), 1, 1, 1),
+                // Lucía by name, with a mistyped DNI
+                line("72345670", "QUISPE MAMANI LUCIA", counts(5, 1, 0, 0), 1, 1, 1),
+                // someone else's DNI and an unknown name: a person decides, the DNI's owner first
+                line("72345678", "PEREZ SOTO JUAN", counts(5, 1, 0, 0), 1, 1, 1)));
+        assertThat(JsonPath.<Integer>read(json, "$.rows[0].student.id")).isEqualTo((int) mateo);
+        assertThat(JsonPath.<String>read(json, "$.rows[0].notice")).contains("El DNI del archivo se repite en otras filas");
+        assertThat(JsonPath.<String>read(json, "$.rows[1].status")).isEqualTo("AUTO_MATCHED");
+        assertThat(JsonPath.<Integer>read(json, "$.rows[1].student.id")).isEqualTo((int) lucia);
+        assertThat(JsonPath.<String>read(json, "$.rows[1].notice")).contains("no coincide con el registrado");
+        assertThat(JsonPath.<String>read(json, "$.rows[2].status")).isEqualTo("UNRESOLVED");
+    }
+
+    @Test
+    void twoNewStudentsSharingADniInTheFileAreBothRegisteredWithoutIt() throws Exception {
+        String json = uploaded("ADMIN", eva(LETRAS_TITLE, 5,
+                line("75556667", "PEREZ SOTO JUAN", counts(5, 1, 0, 0), 1, 1, 1),
+                line("75556667", "DIAZ LUNA ROSA", counts(5, 1, 0, 0), 1, 1, 1)));
+        long batch = id(json);
+        // the repeated DNI is dropped from both rows before the review
+        assertThat(JsonPath.<List<Object>>read(json, "$.rows[*].dni")).containsOnlyNulls();
+        resolve("ADMIN", batch, rowId(json, 12), "{\"action\":\"NEW\",\"firstName\":\"Juan\",\"lastNamePat\":\"Pérez\"}")
+                .andExpect(status().isOk());
+        resolve("ADMIN", batch, rowId(json, 13), "{\"action\":\"NEW\",\"firstName\":\"Rosa\",\"lastNamePat\":\"Díaz\"}")
+                .andExpect(status().isOk());
+
+        confirm("ADMIN", batch).andExpect(status().isOk());
+        assertThat(count("SELECT count(*) FROM student WHERE last_name_pat IN ('Pérez', 'Díaz') AND dni IS NULL")).isEqualTo(2);
+        assertThat(count("SELECT count(*) FROM student WHERE dni = '75556667'")).isZero();
+        assertThat(count("SELECT count(*) FROM exam_result")).isEqualTo(2);
+    }
+
+    @Test
+    void aDniOfAnotherStudentWithAnotherNameGoesToAPersonWithItsOwner() throws Exception {
+        String json = uploaded("ADMIN", eva(LETRAS_TITLE, 5, line("72345678", "PEREZ SOTO JUAN", counts(5, 1, 0, 0), 1, 1, 1)));
+        assertThat(JsonPath.<String>read(json, "$.rows[0].status")).isEqualTo("UNRESOLVED");
+        assertThat(JsonPath.<Integer>read(json, "$.rows[0].candidates[0].id")).isEqualTo((int) lucia);
+        // registered as new, the DNI stays with its owner
+        long batch = id(json);
+        resolve("ADMIN", batch, rowId(json, 12), "{\"action\":\"NEW\",\"firstName\":\"Juan\",\"lastNamePat\":\"Pérez\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rows[0].dni").isEmpty())
+                .andExpect(jsonPath("$.rows[0].notice").value("Ese DNI ya es de otro alumno: se registrará sin DNI."));
+        confirm("ADMIN", batch).andExpect(status().isOk());
+        assertThat(count("SELECT count(*) FROM student WHERE last_name_pat = 'Pérez' AND dni IS NULL")).isEqualTo(1);
+    }
+
+    @Test
+    void aStudentWithAResultInAnotherTypeOfTheMockExamIsReviewed() throws Exception {
+        long mockExam = jdbc.queryForObject("SELECT mock_exam_id FROM exam WHERE id = ?", Long.class, letras);
+        long ciencias = exam(mockExam, CIENCIAS);
+        long enrollment = jdbc.queryForObject("SELECT id FROM student_stage WHERE student_id = ?", Long.class, lucia);
+        jdbc.update("INSERT INTO exam_result (exam_id, student_stage_id, total_score, attended) VALUES (?, ?, 500, true)",
+                ciencias, enrollment);
+
+        String json = uploaded("ADMIN", eva(LETRAS_TITLE, 5, line("72345678", "QUISPE MAMANI LUCIA", counts(5, 1, 0, 0), 1, 1, 1)));
+        long batch = id(json);
+        assertThat(JsonPath.<String>read(json, "$.rows[0].status")).isEqualTo("UNRESOLVED");
+        assertThat(JsonPath.<String>read(json, "$.rows[0].otherExamTypeName")).isEqualTo("Ciencias");
+        assertThat(JsonPath.<String>read(json, "$.rows[0].notice")).contains("Ya tiene resultado en Ciencias");
+
+        String match = "{\"action\":\"MATCH\",\"studentId\":" + lucia;
+        resolve("ADMIN", batch, rowId(json, 12), match + "}").andExpect(status().isConflict());
+        resolve("ADMIN", batch, rowId(json, 12), match + ",\"replaceOther\":true}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rows[0].replacesOther").value(true));
+        confirm("ADMIN", batch).andExpect(status().isOk());
+        assertThat(count("SELECT count(*) FROM exam_result WHERE exam_id = ?", ciencias)).isZero();
+        assertThat(count("SELECT count(*) FROM exam_result WHERE exam_id = ?", letras)).isEqualTo(1);
     }
 
     @Test
@@ -416,14 +507,15 @@ class ExamResultImportApiIT {
         upload("ADMIN", letras, eva("RESULTADOS", 4, line(null, "ROJAS MATEO", counts(4, 1, 0, 0), 1, 1, 1)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value(containsString("no tiene las columnas de cursos de un examen de Letras")));
-        // the same DNI or name twice among the students
+        // the same name twice among the students
         upload("ADMIN", letras, eva(LETRAS_TITLE, 5,
                 line("72345678", "QUISPE MAMANI LUCIA", counts(5, 1, 0, 0), 1, 1, 1),
                 line("72345678", "ROJAS MATEO", counts(5, 1, 0, 0), 1, 1, 1),
                 line(null, "rojas  mateo", counts(5, 1, 0, 0), 1, 1, 1)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.detail").value("Corrige el archivo y vuelve a subirlo: fila 13: el DNI se repite "
-                        + "en la fila 12. · fila 14: el nombre se repite en la fila 13."));
+                // a repeated DNI is only dropped: the repeated name rejects it
+                .andExpect(jsonPath("$.detail").value("Corrige el archivo y vuelve a subirlo: "
+                        + "fila 14: el nombre se repite en la fila 13."));
         // no students at all, or no EVA sheet
         upload("ADMIN", letras, eva(LETRAS_TITLE, 5, new Junk(new Object[] {null, 1, 2, 3})))
                 .andExpect(status().isBadRequest());
@@ -485,10 +577,11 @@ class ExamResultImportApiIT {
         resolve("ADMIN", batch, rowId(json, 15), "{\"action\":\"NEW\",\"lastNamePat\":\"Nuevo\"}")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value("Ingresa los nombres del alumno."));
-        // and its DNI can't be someone else's
+        // a DNI that is someone else's is left out of the new student
         resolve("ADMIN", batch, rowId(json, 12),
                 "{\"action\":\"NEW\",\"firstName\":\"Rosa\",\"lastNamePat\":\"Huamán\"}")
-                .andExpect(status().isConflict());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rows[0].notice").value("Ese DNI ya es de otro alumno: se registrará sin DNI."));
 
         confirm("ADMIN", batch).andExpect(status().isConflict()); // rows 12 and 13 still unresolved
         resolve("ADMIN", batch, rowId(json, 12), "{\"action\":\"IGNORE\"}").andExpect(status().isOk());

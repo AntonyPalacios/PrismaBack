@@ -14,7 +14,7 @@ public interface ExamResultImportService {
      * has no results — unless an admin asks for a {@code reload}: then the
      * batch replaces the exam's results when it is confirmed (REQ-EXAMS-03).
      */
-    ImportBatchDto upload(Long examId, MultipartFile file, boolean reload);
+    ImportBatchDto upload(Long examId, MultipartFile file, boolean reload, boolean replacePending);
 
     /** Exam results batches, newest first; only those with {@code status} when given. Without rows. */
     List<ImportBatchDto> findAll(ImportBatchStatus status);

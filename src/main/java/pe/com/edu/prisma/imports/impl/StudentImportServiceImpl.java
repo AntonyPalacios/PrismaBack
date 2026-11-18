@@ -430,7 +430,7 @@ public class StudentImportServiceImpl implements StudentImportService {
                     p.tutorText(), tutor == null ? null : displayName(tutor.getLastNamePat(), tutor.getLastNameMat(), tutor.getFirstName()),
                     p.notice(), ImportNames.ref(row.getMatchedStudent()),
                     candidateIds(row).stream().map(candidates::get).filter(Objects::nonNull).map(ImportNames::ref).toList(),
-                    false, null, null);
+                    false, null, null, null, false);
         }).toList();
     }
 

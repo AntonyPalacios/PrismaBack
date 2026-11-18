@@ -55,9 +55,16 @@ public class ResultSheet {
     private static final Pattern VALID_DNI = Pattern.compile("[A-Z0-9]{8,12}");
     private static final Pattern HAS_LETTER = Pattern.compile("\\p{L}");
 
-    /** A student row: as read, before matching. */
+    /**
+     * A student row: as read, before matching. {@code dniIgnored}: the file
+     * brought a DNI that other rows repeat, so it was dropped ({@code dni} is null).
+     */
     public record ParsedRow(int rowNumber, String dni, String fullName, List<CourseCount> courses,
-            List<AreaScore> areas, BigDecimal totalScore, boolean attended, String tutorText) {
+            List<AreaScore> areas, BigDecimal totalScore, boolean attended, String tutorText, boolean dniIgnored) {
+
+        ParsedRow withoutDni() {
+            return new ParsedRow(rowNumber, null, fullName, courses, areas, totalScore, attended, tutorText, true);
+        }
     }
 
     /** The student rows and how many other rows were skipped (no name: leftovers, footers). */
@@ -71,7 +78,8 @@ public class ResultSheet {
     /**
      * The file's rows, or an {@link InvalidRequestException} when it is not
      * a results file of {@code type}: another title, other course columns,
-     * or a DNI or name repeated among the students.
+     * or a name repeated among the students. A DNI repeated among them is
+     * dropped from those rows (agreements of 2026-11-18): the name decides.
      */
     public Parsed read(InputStream file, ExamType type, List<String> otherTypeNames) {
         Sheet sheet = openEva(file);
@@ -95,8 +103,8 @@ public class ResultSheet {
         if (rows.isEmpty()) {
             throw new InvalidRequestException("El archivo no tiene resultados de alumnos desde la fila 12 de la hoja EVA.");
         }
-        rejectRepeated(rows);
-        return new Parsed(rows, skipped);
+        rejectRepeatedNames(rows);
+        return new Parsed(dropRepeatedDnis(rows), skipped);
     }
 
     private static Sheet openEva(InputStream file) {
@@ -200,21 +208,26 @@ public class ResultSheet {
             }
         }
         return new ParsedRow(rowNumber, dni(row.getCell(DNI_COLUMN)), name, courses, areas,
-                score(row, layout.total() + 2), attended, text(cell(row, layout.total() + TUTOR_AFTER_TOTAL)));
+                score(row, layout.total() + 2), attended, text(cell(row, layout.total() + TUTOR_AFTER_TOTAL)), false);
     }
 
-    /** A DNI or a name repeated among the students rejects the file: it is fixed in the spreadsheet. */
-    private static void rejectRepeated(List<ParsedRow> rows) {
+    /**
+     * The academy's files often copy a DNI onto other students: a DNI that
+     * several rows bring identifies none of them, so it is dropped from all.
+     */
+    private static List<ParsedRow> dropRepeatedDnis(List<ParsedRow> rows) {
+        Map<String, Long> times = rows.stream().filter(row -> row.dni() != null)
+                .collect(java.util.stream.Collectors.groupingBy(ParsedRow::dni, java.util.stream.Collectors.counting()));
+        return rows.stream()
+                .map(row -> row.dni() != null && times.get(row.dni()) > 1 ? row.withoutDni() : row)
+                .toList();
+    }
+
+    /** A name repeated among the students rejects the file: it is fixed in the spreadsheet. */
+    private static void rejectRepeatedNames(List<ParsedRow> rows) {
         List<String> errors = new ArrayList<>();
-        Map<String, Integer> dniRows = new HashMap<>();
         Map<String, Integer> nameRows = new HashMap<>();
         for (ParsedRow row : rows) {
-            if (row.dni() != null) {
-                Integer first = dniRows.putIfAbsent(row.dni(), row.rowNumber());
-                if (first != null) {
-                    errors.add("fila " + row.rowNumber() + ": el DNI se repite en la fila " + first + ".");
-                }
-            }
             Integer first = nameRows.putIfAbsent(ImportNames.normalize(row.fullName()), row.rowNumber());
             if (first != null) {
                 errors.add("fila " + row.rowNumber() + ": el nombre se repite en la fila " + first + ".");

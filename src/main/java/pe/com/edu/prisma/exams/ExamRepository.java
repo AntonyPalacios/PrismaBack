@@ -16,4 +16,16 @@ public interface ExamRepository extends JpaRepository<Exam, Long> {
     // ids of the given exams that already have results
     @Query(value = "select distinct exam_id from exam_result where exam_id in (:examIds)", nativeQuery = true)
     List<Long> findIdsWithResults(@Param("examIds") Collection<Long> examIds);
+
+    // the results import in review of each of the given exams (at most one each)
+    @Query(value = "select exam_id as examId, max(id) as batchId from import_batch "
+            + "where status = 'PENDING_REVIEW' and exam_id in (:examIds) group by exam_id", nativeQuery = true)
+    List<PendingImport> findPendingImports(@Param("examIds") Collection<Long> examIds);
+
+    interface PendingImport {
+
+        Long getExamId();
+
+        Long getBatchId();
+    }
 }

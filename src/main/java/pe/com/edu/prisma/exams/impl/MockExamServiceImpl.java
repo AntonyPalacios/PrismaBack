@@ -6,6 +6,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -73,8 +74,10 @@ public class MockExamServiceImpl implements MockExamService {
             throw new ResourceNotFoundException(STAGE_NOT_FOUND);
         }
         List<MockExam> mockExams = mockExamRepository.findByStageId(stageId);
-        Set<Long> withResults = withResults(mockExams.stream().flatMap(m -> m.getExams().stream()).toList());
-        return mockExams.stream().sorted(ORDER).map(m -> mapper.toDto(m, withResults)).toList();
+        List<Exam> exams = mockExams.stream().flatMap(m -> m.getExams().stream()).toList();
+        Set<Long> withResults = withResults(exams);
+        Map<Long, Long> pending = pendingImports(exams);
+        return mockExams.stream().sorted(ORDER).map(m -> mapper.toDto(m, withResults, pending)).toList();
     }
 
     @Override
@@ -103,7 +106,7 @@ public class MockExamServiceImpl implements MockExamService {
         types.forEach(type -> saved.getExams().add(newExam(saved, type)));
         log.info("Mock exam created: mockExamId={} stageId={} examTypeIds={}",
                 saved.getId(), stage.getId(), types.stream().map(ExamType::getId).toList());
-        return mapper.toDto(saved, Set.of());
+        return mapper.toDto(saved, Set.of(), Map.of());
     }
 
     @Override
@@ -198,8 +201,18 @@ public class MockExamServiceImpl implements MockExamService {
         return new HashSet<>(examRepository.findIdsWithResults(exams.stream().map(Exam::getId).toList()));
     }
 
+    // the results import in review of each exam, by exam id
+    private Map<Long, Long> pendingImports(Collection<Exam> exams) {
+        if (exams.isEmpty()) {
+            return Map.of();
+        }
+        return examRepository.findPendingImports(exams.stream().map(Exam::getId).toList()).stream()
+                .collect(java.util.stream.Collectors.toMap(ExamRepository.PendingImport::getExamId,
+                        ExamRepository.PendingImport::getBatchId));
+    }
+
     private MockExamDto toDto(MockExam mockExam) {
-        return mapper.toDto(mockExam, withResults(mockExam.getExams()));
+        return mapper.toDto(mockExam, withResults(mockExam.getExams()), pendingImports(mockExam.getExams()));
     }
 
     private ExamType findExamType(Long id) {

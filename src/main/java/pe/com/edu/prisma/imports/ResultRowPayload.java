@@ -12,7 +12,10 @@ import java.util.List;
  * the file's TUTOR cell and {@code tutorId} the active tutor it matched when
  * uploading (null = none or several): the tutor given on confirm to whoever
  * has none. {@code notice}
- * explains why the row needs a person. Everything here is personal data or
+ * explains why the row needs a person. {@code otherExamId} /
+ * {@code otherExamTypeName}: the matched student already has a result in
+ * that other type of the same mock exam; {@code replacesOther} = confirming
+ * deletes it (a person chose so). Everything here is personal data or
  * scores: it never goes to the logs.
  */
 public record ResultRowPayload(
@@ -26,7 +29,10 @@ public record ResultRowPayload(
         Long tutorId,
         boolean enrolls,
         NewStudent newStudent,
-        String notice
+        String notice,
+        Long otherExamId,
+        String otherExamTypeName,
+        boolean replacesOther
 ) {
 
     /** Correct, wrong and blank answers of one course. */
@@ -42,7 +48,19 @@ public record ResultRowPayload(
 
     public ResultRowPayload withReview(boolean enrolls, NewStudent newStudent, String notice) {
         return new ResultRowPayload(fullName, dni, attended, courses, areas, totalScore, tutorText, tutorId, enrolls,
-                newStudent, notice);
+                newStudent, notice, null, null, false);
+    }
+
+    /** The student chosen already has a result in another type of the mock exam ({@code replace}: delete it on confirm). */
+    public ResultRowPayload withOther(Long examId, String examTypeName, boolean replace) {
+        return new ResultRowPayload(fullName, dni, attended, courses, areas, totalScore, tutorText, tutorId, enrolls,
+                newStudent, notice, examId, examTypeName, replace);
+    }
+
+    /** The file's DNI is someone else's: the new student is registered without it. */
+    public ResultRowPayload withoutDni() {
+        return new ResultRowPayload(fullName, null, attended, courses, areas, totalScore, tutorText, tutorId, enrolls,
+                newStudent, notice, otherExamId, otherExamTypeName, replacesOther);
     }
 
     public int totalCorrect() {

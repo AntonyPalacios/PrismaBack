@@ -9,6 +9,7 @@ import java.io.InputStream;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.Comparator;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +36,7 @@ import pe.com.edu.prisma.catalog.CourseRepository;
 import pe.com.edu.prisma.catalog.ExamType;
 import pe.com.edu.prisma.catalog.ExamTypeRepository;
 import pe.com.edu.prisma.common.exception.BusinessRuleException;
+import pe.com.edu.prisma.common.exception.ConfirmationRequiredException;
 import pe.com.edu.prisma.common.exception.InvalidRequestException;
 import pe.com.edu.prisma.common.exception.ResourceNotFoundException;
 import pe.com.edu.prisma.exams.Exam;
@@ -92,13 +94,19 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
     static final String ONLY_ADMIN_RELOADS = "Solo un administrador puede recargar los resultados de un examen.";
     static final String EXAM_GONE = "El examen de esta importación ya no existe: descártala.";
     static final String CHOOSE_STUDENT = "Elige el alumno con el que se empareja la fila.";
-    static final String DNI_EXISTS = "Ya existe un alumno con ese DNI: empareja la fila con él.";
     static final String WITHDRAWN = "Está retirado de esta etapa: no se le pueden cargar resultados. Ignora la fila.";
     static final String INACTIVE = "Está dado de baja y no está matriculado en la etapa: reactívalo antes de confirmar o ignora la fila.";
     static final String WILL_ENROLL = "No está matriculado en la etapa: se matriculará al confirmar en %s.";
     static final String WILL_ENROLL_NO_CAREER = "No está matriculado en la etapa: se matriculará al confirmar, sin carrera.";
     static final String TAKEN_BY_ROW = "Ese alumno ya está en la fila %d: ignora una de las dos.";
     static final String SAME_STUDENT = "Las filas %d y %d son el mismo alumno: ignora una de las dos.";
+    static final String PENDING_EXISTS = "Este examen ya tiene una importación en revisión: continúala o descártala antes de subir otra.";
+    static final String DNI_REPEATED_IN_FILE = "El DNI del archivo se repite en otras filas: se ignoró.";
+    static final String DNI_NOT_MATCHING = "El DNI del archivo no coincide con el registrado: se mantiene el registrado.";
+    static final String NEW_WITHOUT_DNI = "Ese DNI ya es de otro alumno: se registrará sin DNI.";
+    static final String OTHER_TYPE = "Ya tiene resultado en %s de este simulacro: ignora la fila o reemplaza ese resultado.";
+    static final String REPLACES_OTHER = "Al confirmar se borrará su resultado de %s de este simulacro.";
+    static final String OTHER_TYPE_ROW = "Fila %d: ya tiene resultado en %s de este simulacro.";
 
     // how alike two full names must be to suggest "this may be the same person"
     private static final double SIMILAR_NAME = 0.92;
@@ -165,7 +173,7 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
 
     @Override
     @Transactional
-    public ImportBatchDto upload(Long examId, MultipartFile file, boolean reload) {
+    public ImportBatchDto upload(Long examId, MultipartFile file, boolean reload, boolean replacePending) {
         if (reload && !currentUser.hasRole(Role.ADMIN)) {
             throw new AccessDeniedException(ONLY_ADMIN_RELOADS);
         }
@@ -182,6 +190,24 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
         if (hasResults && !reload) {
             throw new BusinessRuleException(HAS_RESULTS);
         }
+        // one import in review per exam: the user continues it, or discards it to upload this one
+        Optional<ImportBatch> pending = batchRepository.findFirstByExamIdAndStatusOrderByIdDesc(examId,
+                ImportBatchStatus.PENDING_REVIEW);
+        if (pending.isPresent() && !replacePending) {
+            ImportBatch other = pending.get();
+            String uploader = userRepository.findById(other.getUploadedBy())
+                    .map(u -> ImportNames.displayName(u.getLastNamePat(), u.getLastNameMat(), u.getFirstName()))
+                    .orElse("");
+            throw new ConfirmationRequiredException(PENDING_EXISTS, Map.of(
+                    "pendingBatchId", other.getId(),
+                    "pendingFileName", other.getFileName(),
+                    "pendingUploadedAt", other.getUploadedAt().toString(),
+                    "pendingUploadedBy", uploader));
+        }
+        pending.ifPresent(other -> {
+            other.setStatus(ImportBatchStatus.DISCARDED);
+            log.info("Exam results import discarded to upload another: batchId={} examId={}", other.getId(), examId);
+        });
         ExamType type = exam.getExamType();
         List<String> otherTypes = examTypeRepository.findAll().stream()
                 .filter(other -> !other.getId().equals(type.getId()))
@@ -205,7 +231,7 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
         batch.setUploadedAt(OffsetDateTime.now(clock));
         batchRepository.save(batch);
 
-        Matcher matcher = new Matcher(stage, defaultCareer(type).orElse(null));
+        Matcher matcher = new Matcher(exam, defaultCareer(type).orElse(null));
         for (ResultSheet.ParsedRow parsedRow : parsed.rows()) {
             batch.getRows().add(matcher.toRow(batch, parsedRow));
         }
@@ -248,13 +274,27 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
                 if (standing.blocker() != null) {
                     throw new BusinessRuleException(standing.blocker());
                 }
+                // a student sits one type per mock exam: replacing the other result is a person's decision
+                Optional<ExamResult> other = otherTypeResult(batch.getExam(), student.getId());
+                boolean replace = Boolean.TRUE.equals(request.replaceOther());
+                if (other.isPresent() && !replace) {
+                    throw new BusinessRuleException(OTHER_TYPE.formatted(other.get().getExam().getExamType().getName()));
+                }
                 row.setMatchedStudent(student);
                 row.setStatus(ImportRowStatus.MANUAL_MATCHED);
-                row.setRawPayload(json(payload.withReview(standing.enrolls(), null, standing.notice())));
+                ResultRowPayload reviewed = payload.withReview(standing.enrolls(), null, other
+                        .map(o -> REPLACES_OTHER.formatted(o.getExam().getExamType().getName()))
+                        .orElse(standing.notice()));
+                row.setRawPayload(json(other
+                        .map(o -> reviewed.withOther(o.getExam().getId(), o.getExam().getExamType().getName(), true))
+                        .orElse(reviewed)));
             }
             case NEW -> {
                 NewStudent names = new NewStudent(request.firstName(), request.lastNamePat(), request.lastNameMat());
-                UpsertStudentRequest student = toRequest(names, payload.dni());
+                // the file's DNI is often someone else's: the new student is registered without it
+                boolean dniTaken = payload.dni() != null && studentRepository.existsByDni(payload.dni());
+                ResultRowPayload base = dniTaken ? payload.withoutDni() : payload;
+                UpsertStudentRequest student = toRequest(names, base.dni());
                 List<String> errors = validator.validate(student).stream()
                         .map(ConstraintViolation::getMessage)
                         .sorted()
@@ -262,13 +302,10 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
                 if (!errors.isEmpty()) {
                     throw new InvalidRequestException(String.join(" ", errors));
                 }
-                if (payload.dni() != null && studentRepository.existsByDni(payload.dni())) {
-                    throw new BusinessRuleException(DNI_EXISTS);
-                }
                 row.setMatchedStudent(null);
                 row.setStatus(ImportRowStatus.NEW_STUDENT);
-                row.setRawPayload(json(payload.withReview(true, new NewStudent(student.firstName(),
-                        student.lastNamePat(), student.lastNameMat()), null)));
+                row.setRawPayload(json(base.withReview(true, new NewStudent(student.firstName(),
+                        student.lastNamePat(), student.lastNameMat()), dniTaken ? NEW_WITHOUT_DNI : null)));
             }
             case IGNORE -> row.setStatus(ImportRowStatus.IGNORED);
         }
@@ -297,6 +334,31 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
                 .filter(row -> row.getStatus() != ImportRowStatus.IGNORED)
                 .toList();
         rejectSameStudentTwice(rows);
+
+        // a student sits one type per mock exam: whoever got a result in another type meanwhile stops the batch,
+        // unless a person chose to replace it
+        Map<Long, ExamResult> otherResults = resultRepository
+                .findInOtherExamsOfMockExam(exam.getMockExam().getId(), exam.getId()).stream()
+                .collect(Collectors.toMap(r -> r.getEnrollment().getStudent().getId(), Function.identity(), (a, b) -> a));
+        int replacedOther = 0;
+        for (ImportRow row : rows) {
+            if (row.getMatchedStudent() == null) {
+                continue;
+            }
+            ExamResult other = otherResults.get(row.getMatchedStudent().getId());
+            if (other == null) {
+                continue;
+            }
+            if (!payload(row).replacesOther()) {
+                throw new BusinessRuleException(OTHER_TYPE_ROW.formatted(row.getRowNumber(),
+                        other.getExam().getExamType().getName()));
+            }
+            resultRepository.delete(other);
+            replacedOther++;
+        }
+        if (replacedOther > 0) {
+            resultRepository.flush();
+        }
 
         int replaced = 0;
         if (batch.isReplacesResults()) {
@@ -348,7 +410,8 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
         batch.setConfirmedBy(currentUser.id());
         batch.setConfirmedAt(OffsetDateTime.now(clock));
         log.info("Exam results import confirmed: batchId={} examId={} results={} studentsCreated={} enrolled={} "
-                + "tutorsAssigned={} replaced={}", batchId, exam.getId(), rows.size(), created, enrolled, tutors, replaced);
+                + "tutorsAssigned={} replaced={} replacedOtherTypes={}", batchId, exam.getId(), rows.size(), created, enrolled,
+                tutors, replaced, replacedOther);
         return toDto(batch, true);
     }
 
@@ -419,6 +482,13 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
         return userRepository.findById(userId).filter(User::isActive).filter(ImportNames::isTutor).isPresent();
     }
 
+    /** The student's result in another type (exam) of the same mock exam, if any. */
+    private Optional<ExamResult> otherTypeResult(Exam exam, Long studentId) {
+        return resultRepository.findInOtherExamsOfMockExam(exam.getMockExam().getId(), exam.getId()).stream()
+                .filter(r -> r.getEnrollment().getStudent().getId().equals(studentId))
+                .findFirst();
+    }
+
     // a student can't take two rows of the same exam
     private void rejectTaken(ImportBatch batch, ImportRow row, Long studentId) {
         batch.getRows().stream()
@@ -445,13 +515,18 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
     }
 
     /**
-     * Decides what each row is when the file is uploaded, as the students
-     * import does: the same student without review if the DNI matches or,
-     * while no DNI contradicts it, the name is exactly that of one single
-     * student. Anyone else waits for a person, with the students it may be.
+     * Decides what each row is when the file is uploaded (agreements of
+     * 2026-11-18): the name decides, the DNI only confirms it, because the
+     * academy's files often carry someone else's DNI. The same student
+     * without review when the DNI matches and the name is similar, or when
+     * the name is exactly that of one single student (whatever the DNI says).
+     * A DNI whose owner has another name is not trusted. Anyone else waits
+     * for a person, with the students it may be. A student who already has a
+     * result in another type of the mock exam always waits for a person.
      */
     private final class Matcher {
 
+        private final Exam exam;
         private final Stage stage;
         private final Career career;
         private final List<Student> students = studentRepository.findAll();
@@ -460,10 +535,14 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
         private final Map<Long, String> names = students.stream()
                 .collect(Collectors.toMap(Student::getId, ImportNames::comparableName));
         private final List<User> tutors = userRepository.findByActiveTrue().stream().filter(ImportNames::isTutor).toList();
+        private final Map<Long, ExamResult> otherTypes;
 
-        Matcher(Stage stage, Career career) {
-            this.stage = stage;
+        Matcher(Exam exam, Career career) {
+            this.exam = exam;
+            this.stage = exam.getMockExam().getStage();
             this.career = career;
+            this.otherTypes = resultRepository.findInOtherExamsOfMockExam(exam.getMockExam().getId(), exam.getId()).stream()
+                    .collect(Collectors.toMap(r -> r.getEnrollment().getStudent().getId(), Function.identity(), (a, b) -> a));
         }
 
         ImportRow toRow(ImportBatch batch, ResultSheet.ParsedRow parsed) {
@@ -471,42 +550,73 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
             row.setBatch(batch);
             row.setRowNumber(parsed.rowNumber());
             String name = normalize(parsed.fullName());
+            List<String> notes = new ArrayList<>();
+            if (parsed.dniIgnored()) {
+                notes.add(DNI_REPEATED_IN_FILE);
+            }
 
-            Student same = parsed.dni() == null ? null : byDni.get(parsed.dni());
-            if (same == null) {
+            // the DNI's owner only if the name agrees; else the one student with exactly this name
+            Student owner = parsed.dni() == null ? null : byDni.get(parsed.dni());
+            Student same = null;
+            if (owner != null && similarity.apply(name, names.get(owner.getId())) >= SIMILAR_NAME) {
+                same = owner;
+            } else {
                 List<Student> named = students.stream().filter(s -> names.get(s.getId()).equals(name)).toList();
-                if (named.size() == 1 && (parsed.dni() == null || named.get(0).getDni() == null)) {
+                if (named.size() == 1) {
                     same = named.get(0);
+                    if (parsed.dni() != null && !parsed.dni().equals(same.getDni())) {
+                        notes.add(DNI_NOT_MATCHING);
+                    }
                 }
             }
             boolean enrolls = false;
-            String notice = null;
+            Long otherExamId = null;
+            String otherTypeName = null;
             if (same != null) {
                 Standing standing = standing(same, stage, career);
+                ExamResult other = otherTypes.get(same.getId());
                 row.setMatchedStudent(same);
-                row.setStatus(standing.blocker() == null ? ImportRowStatus.AUTO_MATCHED : ImportRowStatus.UNRESOLVED);
                 enrolls = standing.enrolls();
-                notice = standing.blocker() == null ? standing.notice() : standing.blocker();
+                if (standing.blocker() != null) {
+                    row.setStatus(ImportRowStatus.UNRESOLVED);
+                    notes.add(standing.blocker());
+                } else if (other != null) {
+                    row.setStatus(ImportRowStatus.UNRESOLVED);
+                    otherExamId = other.getExam().getId();
+                    otherTypeName = other.getExam().getExamType().getName();
+                    notes.add(OTHER_TYPE.formatted(otherTypeName));
+                } else {
+                    row.setStatus(ImportRowStatus.AUTO_MATCHED);
+                    if (standing.notice() != null) {
+                        notes.add(standing.notice());
+                    }
+                }
             } else {
-                row.setCandidateMatches(json(candidates(name, parsed.dni())));
+                row.setCandidateMatches(json(candidates(name, owner)));
                 row.setStatus(ImportRowStatus.UNRESOLVED);
             }
             row.setRawPayload(json(new ResultRowPayload(parsed.fullName(), parsed.dni(), parsed.attended(),
                     parsed.courses(), parsed.areas(), parsed.totalScore(), parsed.tutorText(),
-                    ImportNames.matchTutor(tutors, parsed.tutorText()), enrolls, null, notice)));
+                    ImportNames.matchTutor(tutors, parsed.tutorText()), enrolls, null,
+                    notes.isEmpty() ? null : String.join(" ", notes), otherExamId, otherTypeName, false)));
             return row;
         }
 
-        /** A very similar name, or the very same name with another DNI (a mistyped DNI rather than someone new). */
-        private List<Long> candidates(String name, String dni) {
-            return students.stream()
+        /** The DNI's owner (when the name did not agree) first, then very similar names. */
+        private List<Long> candidates(String name, Student dniOwner) {
+            List<Long> ids = new ArrayList<>();
+            if (dniOwner != null) {
+                ids.add(dniOwner.getId());
+            }
+            students.stream()
                     .map(student -> Map.entry(student, similarity.apply(name, names.get(student.getId()))))
-                    .filter(entry -> dni == null || entry.getKey().getDni() == null || entry.getValue() >= 1.0)
                     .filter(entry -> entry.getValue() >= SIMILAR_NAME)
                     .sorted(Map.Entry.<Student, Double>comparingByValue().reversed())
-                    .limit(MAX_CANDIDATES)
                     .map(entry -> entry.getKey().getId())
-                    .toList();
+                    .filter(id -> !ids.contains(id))
+                    .limit(MAX_CANDIDATES - ids.size())
+                    .forEach(ids::add);
+            return ids;
         }
     }
 
@@ -560,7 +670,7 @@ public class ExamResultImportServiceImpl implements ExamResultImportService {
                     candidateIds(row).stream().map(candidates::get).filter(Objects::nonNull).map(ImportNames::ref).toList(),
                     p.enrolls() && row.getStatus() != ImportRowStatus.IGNORED,
                     n == null ? null : new ImportRowDto.NewStudentDto(n.firstName(), n.lastNamePat(), n.lastNameMat()),
-                    result);
+                    result, p.otherExamTypeName(), p.replacesOther());
         }).toList();
     }
 
