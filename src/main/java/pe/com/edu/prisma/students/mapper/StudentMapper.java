@@ -22,5 +22,8 @@ public interface StudentMapper {
     @Mapping(target = "currentStageName", source = "current.stageName")
     @Mapping(target = "tutorId", source = "current.tutorId")
     @Mapping(target = "tutorName", source = "current.tutorName")
+    @Mapping(target = "careerName", source = "current.careerName")
+    @Mapping(target = "examTypeId", source = "current.examTypeId")
+    @Mapping(target = "examTypeName", source = "current.examTypeName")
     StudentDto toDto(Student student, Current current);
 }

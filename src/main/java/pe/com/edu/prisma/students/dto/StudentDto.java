@@ -18,6 +18,10 @@ public record StudentDto(
         boolean active,
         String currentStageName,
         Long tutorId,
-        String tutorName
+        String tutorName,
+        // the career of the current enrollment and its exam type (null without one)
+        String careerName,
+        Long examTypeId,
+        String examTypeName
 ) {
 }

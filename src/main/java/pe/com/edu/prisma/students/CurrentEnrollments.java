@@ -10,6 +10,7 @@ import pe.com.edu.prisma.academic.CycleRepository;
 import pe.com.edu.prisma.academic.CycleStatus;
 import pe.com.edu.prisma.academic.Stage;
 import pe.com.edu.prisma.academic.StageService;
+import pe.com.edu.prisma.catalog.Career;
 import pe.com.edu.prisma.tutoring.TutorAssignment;
 import pe.com.edu.prisma.tutoring.TutorAssignmentRepository;
 import pe.com.edu.prisma.tutoring.mapper.TutorAssignmentMapper;
@@ -24,8 +25,13 @@ import pe.com.edu.prisma.tutoring.mapper.TutorAssignmentMapper;
 @Component
 public class CurrentEnrollments {
 
-    /** A student's current stage and tutor; tutorId/tutorName are null while it has no tutor. */
-    public record Current(String stageName, Long tutorId, String tutorName) {
+    /**
+     * A student's current stage, tutor and career; tutorId/tutorName are null
+     * while it has no tutor, the career fields while it has no career (the
+     * exam type is the career's: it groups Biomédica with Ciencias, and so on).
+     */
+    public record Current(String stageName, Long tutorId, String tutorName, String careerName, Long examTypeId,
+            String examTypeName) {
     }
 
     private final CycleRepository cycleRepository;
@@ -48,7 +54,7 @@ public class CurrentEnrollments {
         if (stage.isEmpty()) {
             return Map.of();
         }
-        List<Enrollment> enrollments = enrollmentRepository.findByStageIdAndActiveTrue(stage.get().getId());
+        List<Enrollment> enrollments = enrollmentRepository.findWithStudentByStageIdAndActiveTrue(stage.get().getId());
         Map<Long, TutorAssignment> tutors = tutorAssignmentRepository
                 .findByEnrollmentIdInAndValidToIsNull(enrollments.stream().map(Enrollment::getId).toList()).stream()
                 .collect(Collectors.toMap(a -> a.getEnrollment().getId(), Function.identity()));
@@ -57,10 +63,13 @@ public class CurrentEnrollments {
                 e -> e.getStudent().getId(),
                 e -> {
                     TutorAssignment tutor = tutors.get(e.getId());
-                    return tutor == null
-                            ? new Current(stageName, null, null)
-                            : new Current(stageName, tutor.getTutor().getId(),
-                                    TutorAssignmentMapper.displayName(tutor.getTutor()));
+                    Career career = e.getCareer();
+                    return new Current(stageName,
+                            tutor == null ? null : tutor.getTutor().getId(),
+                            tutor == null ? null : TutorAssignmentMapper.displayName(tutor.getTutor()),
+                            career == null ? null : career.getName(),
+                            career == null ? null : career.getExamType().getId(),
+                            career == null ? null : career.getExamType().getName());
                 }));
     }
 
