@@ -18,7 +18,9 @@ import pe.com.edu.prisma.imports.ImportRowStatus;
  * {@code fullName} is the file's name cell,
  * {@code result} the scores read, {@code enrolls} = the student will be
  * enrolled in the stage on confirm, and {@code newStudent} the names split
- * by hand when the row registers a new student.
+ * by hand when the row registers a new student. {@code otherExamTypeName}:
+ * the student already has a result in that type of the same mock exam;
+ * {@code replacesOther} = confirming replaces it.
  */
 public record ImportRowDto(
         Long id,
@@ -38,7 +40,9 @@ public record ImportRowDto(
         List<StudentRefDto> candidates,
         boolean enrolls,
         NewStudentDto newStudent,
-        ResultDto result
+        ResultDto result,
+        String otherExamTypeName,
+        boolean replacesOther
 ) {
 
     public record NewStudentDto(String firstName, String lastNamePat, String lastNameMat) {

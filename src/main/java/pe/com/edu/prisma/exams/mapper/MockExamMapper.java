@@ -1,6 +1,7 @@
 package pe.com.edu.prisma.exams.mapper;
 
 import java.util.Comparator;
+import java.util.Map;
 import java.util.Set;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -16,17 +17,18 @@ public interface MockExamMapper {
     @Mapping(target = "examTypeId", source = "exam.examType.id")
     @Mapping(target = "examTypeName", source = "exam.examType.name")
     @Mapping(target = "hasResults", source = "hasResults")
-    ExamDto toDto(Exam exam, boolean hasResults);
+    @Mapping(target = "pendingImportBatchId", source = "pendingImportBatchId")
+    ExamDto toDto(Exam exam, boolean hasResults, Long pendingImportBatchId);
 
     /**
      * Whether an exam has results is not stored on it: the service passes the
      * ids of those that do. Exam types go in catalog order (Ciencias, Letras,
      * Arquitectura).
      */
-    default MockExamDto toDto(MockExam mockExam, Set<Long> examIdsWithResults) {
+    default MockExamDto toDto(MockExam mockExam, Set<Long> examIdsWithResults, Map<Long, Long> pendingBatchByExam) {
         var exams = mockExam.getExams().stream()
                 .sorted(Comparator.comparing((Exam e) -> e.getExamType().getId()))
-                .map(exam -> toDto(exam, examIdsWithResults.contains(exam.getId())))
+                .map(exam -> toDto(exam, examIdsWithResults.contains(exam.getId()), pendingBatchByExam.get(exam.getId())))
                 .toList();
         return new MockExamDto(mockExam.getId(), mockExam.getStage().getId(), mockExam.getName(),
                 mockExam.getExamDate(), exams.stream().anyMatch(ExamDto::hasResults), exams);

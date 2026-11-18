@@ -20,7 +20,9 @@ public record ResolveRowRequest(
         @Sensitive(LogMask.NAME)
         String lastNamePat,
         @Sensitive(LogMask.NAME)
-        String lastNameMat
+        String lastNameMat,
+        // MATCH only: the student has a result in another type of the mock exam and this one replaces it
+        Boolean replaceOther
 ) {
 
     public enum Action {

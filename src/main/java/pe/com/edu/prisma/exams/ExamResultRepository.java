@@ -57,6 +57,16 @@ public interface ExamResultRepository extends JpaRepository<ExamResult, Long> {
     List<ExamResult> findAttendedByExamTypeAndCycleStatus(@Param("examTypeId") Long examTypeId,
             @Param("cycleStatus") CycleStatus cycleStatus);
 
+    /** The results of a mock exam's other exams (types), with their exam, type and student loaded. */
+    @Query("""
+            select r from ExamResult r
+            join fetch r.exam e
+            join fetch e.examType
+            join fetch r.enrollment en
+            where e.mockExam.id = :mockExamId and e.id <> :examId
+            """)
+    List<ExamResult> findInOtherExamsOfMockExam(@Param("mockExamId") Long mockExamId, @Param("examId") Long examId);
+
     interface ExamScore {
 
         Long getExamId();
