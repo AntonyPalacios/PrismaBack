@@ -194,6 +194,22 @@ class StageApiIT {
     }
 
     @Test
+    void theActiveStageIsCurrentWhateverItsDates() throws Exception {
+        // stages created ahead: by dates "Segunda" would be current, but only "Primera" was activated
+        long cycle = cycleId("En curso", day(-60), day(60));
+        long first = stageId(cycle, "Primera", day(-60), day(-31));
+        stageId(cycle, "Segunda", day(-30), day(10));
+        stageId(cycle, "Tercera", day(11), null);
+        jdbc.update("UPDATE stage SET status = 'ACTIVE' WHERE id = ?", first);
+
+        assertThat(currentStageNames(cycle)).containsExactly("Primera");
+
+        // closing it without activating another falls back to the dates
+        jdbc.update("UPDATE stage SET status = 'CLOSED' WHERE id = ?", first);
+        assertThat(currentStageNames(cycle)).containsExactly("Segunda");
+    }
+
+    @Test
     void noStageIsCurrentWhileNoneHasStarted() throws Exception {
         long cycle = cycleId("Futuro", day(10), day(60));
         stageId(cycle, "Primera", day(10), day(30));
