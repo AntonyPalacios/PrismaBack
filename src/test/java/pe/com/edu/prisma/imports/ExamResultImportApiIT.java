@@ -420,6 +420,25 @@ class ExamResultImportApiIT {
     }
 
     @Test
+    void twoNewStudentsSharingADniInTheFileAreBothRegisteredWithoutIt() throws Exception {
+        String json = uploaded("ADMIN", eva(LETRAS_TITLE, 5,
+                line("75556667", "PEREZ SOTO JUAN", counts(5, 1, 0, 0), 1, 1, 1),
+                line("75556667", "DIAZ LUNA ROSA", counts(5, 1, 0, 0), 1, 1, 1)));
+        long batch = id(json);
+        // the repeated DNI is dropped from both rows before the review
+        assertThat(JsonPath.<List<Object>>read(json, "$.rows[*].dni")).containsOnlyNulls();
+        resolve("ADMIN", batch, rowId(json, 12), "{\"action\":\"NEW\",\"firstName\":\"Juan\",\"lastNamePat\":\"Pérez\"}")
+                .andExpect(status().isOk());
+        resolve("ADMIN", batch, rowId(json, 13), "{\"action\":\"NEW\",\"firstName\":\"Rosa\",\"lastNamePat\":\"Díaz\"}")
+                .andExpect(status().isOk());
+
+        confirm("ADMIN", batch).andExpect(status().isOk());
+        assertThat(count("SELECT count(*) FROM student WHERE last_name_pat IN ('Pérez', 'Díaz') AND dni IS NULL")).isEqualTo(2);
+        assertThat(count("SELECT count(*) FROM student WHERE dni = '75556667'")).isZero();
+        assertThat(count("SELECT count(*) FROM exam_result")).isEqualTo(2);
+    }
+
+    @Test
     void aDniOfAnotherStudentWithAnotherNameGoesToAPersonWithItsOwner() throws Exception {
         String json = uploaded("ADMIN", eva(LETRAS_TITLE, 5, line("72345678", "PEREZ SOTO JUAN", counts(5, 1, 0, 0), 1, 1, 1)));
         assertThat(JsonPath.<String>read(json, "$.rows[0].status")).isEqualTo("UNRESOLVED");
